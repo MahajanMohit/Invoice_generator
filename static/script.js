@@ -203,13 +203,13 @@ generateBtn.addEventListener("click", async () => {
     const data = await res.json().catch(() => ({ error: "Unknown error" }));
     if (!res.ok) throw new Error(data.error || "Server error");
 
-    if (data.sheet_error) {
-      showToast(`Invoice ${invoiceNo} saved! (Sheet sync failed)`, "warn");
+    if (data.db_error) {
+      showToast(`Invoice ${invoiceNo} saved! (DB warning: ${data.db_error})`, "warn");
     } else {
       showToast(`Invoice ${invoiceNo} saved successfully!`, "success");
     }
 
-    openShareModal(data.filename, data.thermal_filename, data.invoice_no, data.customer, data.grand_total);
+    openShareModal(data.filename, data.invoice_no, data.customer, data.grand_total);
 
   } catch (e) {
     showToast("Error: " + e.message, "error");
@@ -239,19 +239,17 @@ function encodePath(relPath) {
   return relPath.split("/").map(encodeURIComponent).join("/");
 }
 
-function openShareModal(filename, thermalFilename, invNo, customer, grandTotal) {
+function openShareModal(filename, invNo, customer, grandTotal) {
   modalSub.textContent = `${invNo}  •  ${customer}  •  ₹${parseFloat(grandTotal).toFixed(2)}`;
   shareModal.classList.remove("hidden");
 
-  // View/Share — opens A4 PDF in new tab
-  btnShare.onclick = () => {
-    window.open(`${window.location.origin}/invoice-file/${encodePath(filename)}`, "_blank");
-  };
+  const pdfUrl = `${window.location.origin}/invoice-file/${encodePath(filename)}`;
 
-  // Print — opens 52mm thermal PDF for printing
-  btnPrint.onclick = () => {
-    window.open(`${window.location.origin}/invoice-file/${encodePath(thermalFilename)}`, "_blank");
-  };
+  // View/Share — opens receipt PDF in new tab
+  btnShare.onclick = () => { window.open(pdfUrl, "_blank"); };
+
+  // Print — opens same receipt PDF; user selects thermal printer from browser print dialog
+  btnPrint.onclick = () => { window.open(pdfUrl, "_blank"); };
 
   btnSkip.onclick = closeShareModal;
 }
@@ -294,11 +292,12 @@ async function loadSidebarInvoices() {
     const fragment   = document.createDocumentFragment();
 
     files.forEach(f => {
-      const parsed  = parseFilename(f.filename);
-      const dateStr = parsed.date || fmtDate(new Date(f.mtime * 1000));
-      const label   = dateStr === todayStr ? "Today"
-                    : dateStr === ydayStr  ? "Yesterday"
-                    : dateStr;
+      // DB returns date as "DD-MM-YYYY"; convert to "YYYY-MM-DD" for comparison
+      const [dd, mm, yyyy] = (f.date || "").split("-");
+      const dateComp = (yyyy && mm && dd) ? `${yyyy}-${mm}-${dd}` : "";
+      const label    = dateComp === todayStr ? "Today"
+                     : dateComp === ydayStr  ? "Yesterday"
+                     : f.date || "Unknown";
 
       if (label !== currentGroup) {
         currentGroup = label;
@@ -312,11 +311,11 @@ async function loadSidebarInvoices() {
       item.className = "sidebar-item";
       item.innerHTML = `
         <div class="sidebar-item-top">
-          <span class="sidebar-item-no">${parsed.invNo}</span>
-          ${parsed.total ? `<span class="sidebar-item-total">₹${parsed.total}</span>` : ""}
+          <span class="sidebar-item-no">${f.invoice_no || "—"}</span>
+          <span class="sidebar-item-total">₹${parseFloat(f.grand_total || 0).toFixed(2)}</span>
         </div>
-        <span class="sidebar-item-name">${parsed.customer}</span>
-        <span class="sidebar-item-time">${fmtTime(f.mtime)}</span>`;
+        <span class="sidebar-item-name">${f.customer || "—"}</span>
+        <span class="sidebar-item-time">${f.time || ""}</span>`;
       item.addEventListener("click", () => {
         window.open(`/invoice-file/${encodePath(f.filename)}`, "_blank");
       });

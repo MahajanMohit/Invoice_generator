@@ -61,20 +61,30 @@ if errorlevel 1 (
 echo  [OK] All packages installed.
 echo.
 
-:: ── Check credentials.json ────────────────────────────
-if not exist "credentials.json" (
-    echo  [!] WARNING: credentials.json not found in this folder.
-    echo      Google Sheet sync will not work until you add it.
-    echo      Place your credentials.json file here:
-    echo      %~dp0credentials.json
-    echo.
+:: ── Add shakti.local to hosts file (requires admin) ──
+echo  [..] Registering shakti.local (needs admin rights)...
+findstr /C:"shakti.local" "%SystemRoot%\System32\drivers\etc\hosts" >nul 2>&1
+if errorlevel 1 (
+    :: Not yet added — try to add it
+    echo 127.0.0.1  shakti.local >> "%SystemRoot%\System32\drivers\etc\hosts" 2>nul
+    if errorlevel 1 (
+        echo  [!] Could not write to hosts file (run setup.bat as Administrator
+        echo      for shakti.local to work in the local browser).
+        echo      Mobile devices will still work via zeroconf on the same WiFi.
+    ) else (
+        echo  [OK] shakti.local registered.
+    )
+) else (
+    echo  [OK] shakti.local already registered.
 )
+echo.
 
 :: ── Done ──────────────────────────────────────────────
 echo  ================================================
 echo    Setup complete!
 echo.
 echo    Next step: Double-click  run.bat  to start.
+echo    Then open: http://shakti.local:5000
 echo  ================================================
 echo.
 pause
