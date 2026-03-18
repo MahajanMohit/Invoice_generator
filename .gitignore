@@ -1,0 +1,20 @@
+# Google service account key — never commit
+credentials.json
+
+# Python virtual environment
+venv/
+
+# Generated invoices
+invoices/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# SSL certs (if any)
+*.pem
+
+# OS files
+.DS_Store
+Thumbs.db

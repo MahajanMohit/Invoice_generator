@@ -1,0 +1,80 @@
+@echo off
+title Shakti General Store - Setup
+cd /d "%~dp0"
+color 0B
+
+echo.
+echo  ================================================
+echo    Shakti General Store - First Time Setup
+echo  ================================================
+echo.
+
+:: ── Check Python ──────────────────────────────────────
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo  [!] Python is not installed on this computer.
+    echo.
+    echo  Opening the Python download page in your browser...
+    echo.
+    echo  IMPORTANT during install:
+    echo    - Check the box that says "Add Python to PATH"
+    echo    - Then click Install Now
+    echo.
+    echo  After Python is installed, run this setup again.
+    echo.
+    start https://www.python.org/downloads/
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do set PY_VER=%%v
+echo  [OK] Found %PY_VER%
+echo.
+
+:: ── Create virtual environment ────────────────────────
+if not exist "venv\Scripts\python.exe" (
+    echo  [..] Creating isolated environment...
+    python -m venv venv
+    if errorlevel 1 (
+        echo  [!] Failed to create virtual environment.
+        pause
+        exit /b 1
+    )
+    echo  [OK] Environment created.
+) else (
+    echo  [OK] Environment already exists, skipping.
+)
+echo.
+
+:: ── Install packages ──────────────────────────────────
+echo  [..] Installing required packages...
+echo       This may take 1-2 minutes on first run.
+echo.
+venv\Scripts\pip install -r requirements.txt --quiet --disable-pip-version-check
+if errorlevel 1 (
+    echo.
+    echo  [!] Package installation failed.
+    echo      Check your internet connection and try again.
+    pause
+    exit /b 1
+)
+echo  [OK] All packages installed.
+echo.
+
+:: ── Check credentials.json ────────────────────────────
+if not exist "credentials.json" (
+    echo  [!] WARNING: credentials.json not found in this folder.
+    echo      Google Sheet sync will not work until you add it.
+    echo      Place your credentials.json file here:
+    echo      %~dp0credentials.json
+    echo.
+)
+
+:: ── Done ──────────────────────────────────────────────
+echo  ================================================
+echo    Setup complete!
+echo.
+echo    Next step: Double-click  run.bat  to start.
+echo  ================================================
+echo.
+pause

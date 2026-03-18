@@ -1,0 +1,7 @@
+flask
+reportlab
+gspread
+google-auth
+google-auth-oauthlib
+waitress
+cryptography

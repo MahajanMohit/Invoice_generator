@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shakti General Store — Invoice</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- ── Sidebar backdrop ── -->
+  <div class="sidebar-backdrop hidden" id="sidebarBackdrop"></div>
+
+  <!-- ── Invoice History Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h3>Invoice History</h3>
+      <button class="sidebar-close" id="sidebarClose" title="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="sidebar-list" id="invoicesList">
+      <p class="sidebar-loading">Loading…</p>
+    </div>
+  </aside>
+
+  <!-- ── Sidebar toggle tab (desktop only) ── -->
+  <button class="sidebar-tab" id="sidebarTab" title="Invoice History">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="8" y1="13" x2="16" y2="13"/>
+      <line x1="8" y1="17" x2="16" y2="17"/>
+    </svg>
+    <span>History</span>
+  </button>
+
+  <!-- ── Header ── -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="store-icon">🏪</div>
+      <div>
+        <h1>Shakti General Store</h1>
+        <p class="tagline">Quality Products | Trusted Service</p>
+      </div>
+      {% if local_ip %}
+      <div class="network-pill">
+        <span class="network-pill-icon">📱</span>
+        <div class="network-pill-text">
+          <span class="network-pill-label">Open on phone</span>
+          <span class="network-pill-url">{{ local_ip }}:5000</span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- ── Main Card ── -->
+  <main>
+    <div class="card">
+
+      <!-- Card heading + invoice number -->
+      <div class="card-header">
+        <h2>New Invoice</h2>
+
+        <!-- History button — shown only on mobile, replaces the sidebar tab -->
+        <button class="history-inline-btn" id="historyInlineBtn" title="Invoice History">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="16" y2="13"/>
+            <line x1="8" y1="17" x2="16" y2="17"/>
+          </svg>
+          History
+        </button>
+
+        <div class="invoice-badge">
+          <span class="badge-label">Invoice No</span>
+          <span class="badge-value" id="invoiceNo">Loading…</span>
+        </div>
+      </div>
+
+      <!-- ── Customer + Date row ── -->
+      <div class="top-fields">
+        <div class="field-group">
+          <label for="customerName">Customer Name <span class="required">*</span></label>
+          <input type="text" id="customerName" placeholder="Enter customer name" autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label>Date &amp; Time</label>
+          <input type="text" id="dateTime" readonly class="readonly-field" />
+        </div>
+      </div>
+
+      <!-- ── Items table ── -->
+      <div class="table-wrapper">
+        <table id="itemsTable">
+          <thead>
+            <tr>
+              <th class="col-no">#</th>
+              <th class="col-name">Item Name</th>
+              <th class="col-qty">Qty</th>
+              <th class="col-price">Unit Price (₹)</th>
+              <th class="col-total">Total (₹)</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ── Grand Total ── -->
+      <div class="grand-total-row">
+        <span class="gt-label">Grand Total</span>
+        <span class="gt-value">₹ <span id="grandTotal">0.00</span></span>
+      </div>
+
+      <!-- ── Actions ── -->
+      <div class="actions">
+        <button id="clearBtn" class="btn-secondary" type="button">Clear All</button>
+        <button id="generateBtn" class="btn-primary" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="12" x2="12" y2="18"/>
+            <line x1="9"  y1="15" x2="15" y2="15"/>
+          </svg>
+          Generate Invoice
+        </button>
+      </div>
+
+    </div><!-- /card -->
+  </main>
+
+  <!-- ── Share Modal ── -->
+  <div id="shareModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-check">✓</div>
+        <h3 id="modalTitle">Invoice Saved!</h3>
+        <p id="modalSub" class="modal-sub"></p>
+      </div>
+      <button class="share-single-btn" id="btnShare">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/>
+          <circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+        View / Share Invoice
+      </button>
+      <button class="share-print-btn" id="btnPrint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Print Receipt (52mm)
+      </button>
+      <div class="modal-footer">
+        <button class="btn-close-modal" id="btnSkip">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast ── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ── Spinner ── -->
+  <div id="spinner" class="spinner-overlay hidden">
+    <div class="spinner-box">
+      <div class="spinner"></div>
+      <p>Generating invoice…</p>
+    </div>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
