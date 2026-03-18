@@ -74,6 +74,16 @@ def init_db():
                 created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
+                item_name   TEXT    NOT NULL,
+                qty         REAL    NOT NULL,
+                unit_price  REAL    NOT NULL,
+                total       REAL    NOT NULL
+            )
+        """)
         con.commit()
 
 def db_next_invoice_number():
@@ -82,15 +92,35 @@ def db_next_invoice_number():
     last_id = row[0] if row[0] else 0
     return f"SGS-{last_id + 1:03d}"
 
-def db_insert(invoice_no, date_col, time_col, day_col, customer, grand_total, pdf_rel):
+def db_insert(invoice_no, date_col, time_col, day_col, customer, grand_total, pdf_rel, items):
     with sqlite3.connect(DB_PATH) as con:
-        con.execute(
+        cur = con.execute(
             """INSERT INTO invoices
                (invoice_no, date, time, day, customer, grand_total, paid, balance, pdf_path)
                VALUES (?,?,?,?,?,?,'Paid',0,?)""",
             (invoice_no, date_col, time_col, day_col, customer, grand_total, pdf_rel),
         )
+        inv_id = cur.lastrowid
+        for it in items:
+            con.execute(
+                "INSERT INTO invoice_items (invoice_id, item_name, qty, unit_price, total) VALUES (?,?,?,?,?)",
+                (inv_id, it["item_name"], it["qty"], it["unit_price"], it["total"]),
+            )
         con.commit()
+
+def db_get_invoice(invoice_no):
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        inv = con.execute(
+            "SELECT * FROM invoices WHERE invoice_no=? ORDER BY id DESC LIMIT 1", (invoice_no,)
+        ).fetchone()
+        if not inv:
+            return None, []
+        items = con.execute(
+            "SELECT item_name, qty, unit_price, total FROM invoice_items WHERE invoice_id=?",
+            (inv["id"],)
+        ).fetchall()
+    return dict(inv), [dict(r) for r in items]
 
 def db_list():
     with sqlite3.connect(DB_PATH) as con:
@@ -199,7 +229,7 @@ def generate():
 
     db_error = None
     try:
-        db_insert(invoice_no, date_col, time_col, day_col, customer_name, grand_total, rel_pdf)
+        db_insert(invoice_no, date_col, time_col, day_col, customer_name, grand_total, rel_pdf, items)
     except Exception as e:
         traceback.print_exc()
         db_error = str(e)
@@ -242,6 +272,14 @@ def serve_invoice(filename):
         download_name=os.path.basename(safe_path) if download else None,
     )
 
+@app.route("/print-receipt/<invoice_no>")
+def print_receipt(invoice_no):
+    """Serve an HTML receipt page sized for 58mm thermal printing — no browser margins."""
+    inv, items = db_get_invoice(invoice_no)
+    if not inv:
+        return "Invoice not found", 404
+    return render_template("print_receipt.html", inv=inv, items=items, rupee=RUPEE)
+
 @app.route("/invoices-list")
 def invoices_list():
     try:
@@ -283,7 +321,7 @@ def generate_receipt_pdf(path, invoice_no, customer_name, datetime_str, items, g
     s_foot  = ParagraphStyle("tf", fontName=FONT_ITALIC, fontSize=6,   alignment=TA_CENTER, leading=9,  textColor=colors.HexColor("#607d8b"))
 
     # Store header
-    story.append(Paragraph("Shakti General Store", s_head))
+    story.append(Paragraph("Shakti General Store, Dablehar", s_head))
     story.append(Spacer(1, 0.5 * mm))
     story.append(Paragraph("Quality Products | Trusted Service", s_sub))
     story.append(Spacer(1, 1 * mm))

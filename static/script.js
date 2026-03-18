@@ -243,13 +243,14 @@ function openShareModal(filename, invNo, customer, grandTotal) {
   modalSub.textContent = `${invNo}  •  ${customer}  •  ₹${parseFloat(grandTotal).toFixed(2)}`;
   shareModal.classList.remove("hidden");
 
-  const pdfUrl = `${window.location.origin}/invoice-file/${encodePath(filename)}`;
+  const pdfUrl   = `${window.location.origin}/invoice-file/${encodePath(filename)}`;
+  const printUrl = `${window.location.origin}/print-receipt/${encodeURIComponent(invNo)}`;
 
   // View/Share — opens receipt PDF in new tab
   btnShare.onclick = () => { window.open(pdfUrl, "_blank"); };
 
-  // Print — opens same receipt PDF; user selects thermal printer from browser print dialog
-  btnPrint.onclick = () => { window.open(pdfUrl, "_blank"); };
+  // Print — opens HTML receipt with @page {size:58mm; margin:0} — no browser margin issues
+  btnPrint.onclick = () => { window.open(printUrl, "_blank"); };
 
   btnSkip.onclick = closeShareModal;
 }
