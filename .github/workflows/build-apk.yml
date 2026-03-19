@@ -35,36 +35,19 @@ jobs:
         working-directory: shakti_invoice
         run: flutter pub get
 
-      - name: Generate missing Android project files
+      - name: Generate gradle wrapper (binary files only)
         working-directory: shakti_invoice
         run: |
-          # Save our custom files (permissions, FileProvider config)
-          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
-          cp android/app/src/main/res/xml/file_paths.xml /tmp/file_paths.xml
+          # Save all our committed Android files
+          cp -r android /tmp/android_backup
 
-          # Let Flutter generate the complete Android project structure
-          # (build.gradle, settings.gradle, gradlew, MainActivity.kt, etc.)
-          flutter create --platforms android --project-name shakti_invoice .
+          # Run flutter create only to generate binary wrapper files
+          # (gradlew shell script + gradle-wrapper.jar)
+          flutter create --platforms android --project-name shakti_invoice . --quiet
 
-          # Restore our custom files
-          cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          cp /tmp/file_paths.xml android/app/src/main/res/xml/file_paths.xml
-
-          # Fix duplicate Kotlin stdlib classes (kotlin-stdlib vs kotlin-stdlib-jdk8)
-          # by forcing a consistent version across all subprojects
-          cat >> android/build.gradle << 'EOF'
-
-subprojects {
-    project.configurations.all {
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'org.jetbrains.kotlin' &&
-                details.requested.name.startsWith('kotlin-stdlib')) {
-                details.useVersion '1.8.22'
-            }
-        }
-    }
-}
-EOF
+          # Restore all our committed files (build.gradle, settings.gradle,
+          # gradle.properties, MainActivity.kt, AndroidManifest.xml, etc.)
+          cp -r /tmp/android_backup/. android/
 
       - name: Build release APK
         working-directory: shakti_invoice
