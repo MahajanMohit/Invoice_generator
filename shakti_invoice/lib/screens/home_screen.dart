@@ -434,33 +434,34 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 children: [
                   Expanded(
-                      flex: 3,
+                      flex: 4,
                       child: Text('Item',
                           style: TextStyle(
                               fontSize: 11,
                               color: cs.onSurfaceVariant))),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                      width: 64,
+                  const SizedBox(width: 6),
+                  Expanded(
+                      flex: 2,
                       child: Text('Qty',
                           style: TextStyle(
                               fontSize: 11,
                               color: cs.onSurfaceVariant))),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                      width: 80,
+                  const SizedBox(width: 6),
+                  Expanded(
+                      flex: 2,
                       child: Text('Price',
                           style: TextStyle(
                               fontSize: 11,
                               color: cs.onSurfaceVariant))),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                      width: 72,
+                  const SizedBox(width: 6),
+                  Expanded(
+                      flex: 3,
                       child: Text('Total',
+                          textAlign: TextAlign.right,
                           style: TextStyle(
                               fontSize: 11,
                               color: cs.onSurfaceVariant))),
-                  const SizedBox(width: 32),
+                  const SizedBox(width: 40),
                 ],
               ),
               const Divider(),
@@ -496,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                flex: 3,
+                flex: 4,
                 child: TextField(
                   controller: _rows[i]['name'],
                   decoration: _inputDeco('Name', cs),
@@ -505,8 +506,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              SizedBox(
-                width: 60,
+              Expanded(
+                flex: 2,
                 child: TextField(
                   controller: _rows[i]['qty'],
                   decoration: _inputDeco('Qty', cs),
@@ -516,8 +517,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              SizedBox(
-                width: 78,
+              Expanded(
+                flex: 2,
                 child: TextField(
                   controller: _rows[i]['price'],
                   decoration: _inputDeco('Price', cs),
@@ -527,8 +528,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              SizedBox(
-                width: 70,
+              Expanded(
+                flex: 3,
                 child: Text(
                   total > 0 ? NumberFormat('#,##0.00').format(total) : '—',
                   textAlign: TextAlign.right,
