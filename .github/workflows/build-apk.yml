@@ -35,6 +35,21 @@ jobs:
         working-directory: shakti_invoice
         run: flutter pub get
 
+      - name: Generate missing Android project files
+        working-directory: shakti_invoice
+        run: |
+          # Save our custom files (permissions, FileProvider config)
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+          cp android/app/src/main/res/xml/file_paths.xml /tmp/file_paths.xml
+
+          # Let Flutter generate the complete Android project structure
+          # (build.gradle, settings.gradle, gradlew, MainActivity.kt, etc.)
+          flutter create --platforms android --project-name shakti_invoice .
+
+          # Restore our custom files
+          cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp /tmp/file_paths.xml android/app/src/main/res/xml/file_paths.xml
+
       - name: Build release APK
         working-directory: shakti_invoice
         run: flutter build apk --release
