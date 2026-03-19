@@ -1,4 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../database/database_helper.dart';
 import '../services/store_settings.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,8 +26,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _footer1Ctrl = TextEditingController();
   final _footer2Ctrl = TextEditingController();
 
+  final _db = DatabaseHelper();
   bool _loading = true;
   bool _saving = false;
+  bool _backingUp = false;
+  bool _restoring = false;
 
   @override
   void initState() {
@@ -95,6 +105,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _footer1Ctrl.text = d.footerLine1;
     _footer2Ctrl.text = d.footerLine2;
     setState(() {});
+  }
+
+  Future<void> _backup() async {
+    setState(() => _backingUp = true);
+    try {
+      final data = await _db.exportAllData();
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
+      final dir = await getTemporaryDirectory();
+      final name =
+          'shakti_bills_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
+      final file = File('${dir.path}/$name');
+      await file.writeAsString(jsonStr);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/json')],
+        subject: 'Shakti Bills Backup – $name',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Backup failed: $e'),
+              backgroundColor: const Color(0xFFe53935)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _backingUp = false);
+    }
+  }
+
+  Future<void> _restore() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore Backup?'),
+        content: const Text(
+            'All current invoice data will be replaced with the backup file. '
+            'This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Restore',
+                  style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _restoring = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result == null || result.files.isEmpty) {
+        setState(() => _restoring = false);
+        return;
+      }
+      final content = await File(result.files.single.path!).readAsString();
+      final data = jsonDecode(content) as Map<String, dynamic>;
+      if (data['version'] == null || data['invoices'] == null) {
+        throw const FormatException('Not a valid Shakti Bills backup file.');
+      }
+      await _db.importData(data);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Backup restored successfully!'),
+          backgroundColor: Color(0xFF2e7d32),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Restore failed: $e'),
+              backgroundColor: const Color(0xFFe53935)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
   }
 
   @override
@@ -185,6 +276,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 24),
                   _buildPreview(cs),
+                  const SizedBox(height: 24),
+                  _sectionHeader(Icons.backup, 'Data Management', cs),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Backup exports all invoices as a JSON file you can save or share. '
+                    'Restore replaces all data from a previous backup.',
+                    style: TextStyle(
+                        fontSize: 12, color: cs.onSurface.withOpacity(0.55)),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: _backingUp
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2))
+                              : const Icon(Icons.upload),
+                          label:
+                              Text(_backingUp ? 'Exporting…' : 'Backup Data'),
+                          onPressed:
+                              (_backingUp || _restoring) ? null : _backup,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: cs.primary),
+                            foregroundColor: cs.primary,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: _restoring
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2))
+                              : const Icon(Icons.download),
+                          label: Text(
+                              _restoring ? 'Restoring…' : 'Restore Backup'),
+                          onPressed:
+                              (_backingUp || _restoring) ? null : _restore,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side:
+                                BorderSide(color: cs.error.withOpacity(0.7)),
+                            foregroundColor: cs.error,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,

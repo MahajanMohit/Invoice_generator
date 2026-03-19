@@ -127,6 +127,62 @@ class DatabaseHelper {
     });
   }
 
+  /// Returns today's invoice count and grand total sum
+  Future<Map<String, dynamic>> getTodaySummary() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      "SELECT COUNT(*) as count, COALESCE(SUM(grand_total), 0.0) as total "
+      "FROM invoices WHERE date(created_at) = date('now','localtime')",
+    );
+    return {
+      'count': result.first['count'] as int,
+      'total': (result.first['total'] as num).toDouble(),
+    };
+  }
+
+  /// Export every invoice + its items as a JSON-serialisable map
+  Future<Map<String, dynamic>> exportAllData() async {
+    final db = await database;
+    final invoiceRows = await db.query('invoices', orderBy: 'id ASC');
+    final List<Map<String, dynamic>> out = [];
+    for (final inv in invoiceRows) {
+      final itemRows = await db.query(
+        'invoice_items',
+        where: 'invoice_id = ?',
+        whereArgs: [inv['id']],
+      );
+      out.add({...inv, 'items': itemRows.toList()});
+    }
+    return {
+      'version': 1,
+      'exported_at': DateTime.now().toIso8601String(),
+      'invoices': out,
+    };
+  }
+
+  /// Wipe all data and replace with the contents of [backup].
+  /// The backup map must come from [exportAllData].
+  Future<void> importData(Map<String, dynamic> backup) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('invoice_items');
+      await txn.delete('invoices');
+      final invoices = backup['invoices'] as List<dynamic>;
+      for (final invData in invoices) {
+        final inv = Map<String, dynamic>.from(invData as Map);
+        final items = inv.remove('items') as List<dynamic>;
+        inv.remove('id'); // let SQLite assign a new id
+        final newId = await txn.insert('invoices', inv);
+        for (final itemData in items) {
+          final item = Map<String, dynamic>.from(itemData as Map);
+          item.remove('id');
+          item['invoice_id'] = newId;
+          await txn.insert('invoice_items', item);
+        }
+      }
+    });
+  }
+
   /// Get a single invoice with its items
   Future<Invoice?> getInvoice(String invoiceNo) async {
     final db = await database;

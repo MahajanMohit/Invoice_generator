@@ -20,12 +20,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<Invoice> _invoices = [];
   bool _loading = true;
   bool _showLast30Days = false;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
     // Silently purge invoices older than 30 days, then load
     _db.deleteOldInvoices(30).then((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Invoice> get _filtered {
+    if (_searchQuery.isEmpty) return _invoices;
+    return _invoices
+        .where((inv) =>
+            inv.invoiceNo.toLowerCase().contains(_searchQuery) ||
+            inv.customer.toLowerCase().contains(_searchQuery))
+        .toList();
   }
 
   Future<void> _load() async {
@@ -96,10 +116,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: Column(
         children: [
           _buildToggleBar(cs),
+          _buildSearchBar(cs),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : _invoices.isEmpty
+                : _filtered.isEmpty
                     ? _buildEmpty(cs)
                     : RefreshIndicator(
                         onRefresh: _load,
@@ -148,6 +169,34 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildSearchBar(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: TextField(
+        controller: _searchCtrl,
+        decoration: InputDecoration(
+          hintText: 'Search by customer or invoice no…',
+          hintStyle: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.45)),
+          prefixIcon: Icon(Icons.search, size: 20, color: cs.onSurface.withOpacity(0.5)),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
+                  onPressed: () => _searchCtrl.clear(),
+                )
+              : null,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: cs.outline)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: cs.primary, width: 1.5)),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmpty(ColorScheme cs) {
     return Center(
       child: Column(
@@ -181,7 +230,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildList(ColorScheme cs) {
     // Group by date label, compute per-day total
     final groups = <String, List<Invoice>>{};
-    for (final inv in _invoices) {
+    for (final inv in _filtered) {
       final label = _dateLabel(inv.date);
       groups.putIfAbsent(label, () => []).add(inv);
     }

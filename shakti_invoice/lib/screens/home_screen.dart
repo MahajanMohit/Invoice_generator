@@ -33,6 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = false;
   StoreSettings _settings = StoreSettings.defaults();
 
+  // Daily summary
+  int _todayCount = 0;
+  double _todayTotal = 0;
+
   // Each row: {name, qty, price} controllers
   final List<Map<String, TextEditingController>> _rows = [];
 
@@ -44,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
     _loadInvoiceNumber();
     _loadSettings();
+    _loadSummary();
     _addRow();
   }
 
@@ -74,6 +79,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadSettings() async {
     final s = await StoreSettingsService.load();
     if (mounted) setState(() => _settings = s);
+  }
+
+  Future<void> _loadSummary() async {
+    final summary = await _db.getTodaySummary();
+    if (mounted) {
+      setState(() {
+        _todayCount = summary['count'] as int;
+        _todayTotal = summary['total'] as double;
+      });
+    }
   }
 
   void _addRow() {
@@ -140,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _rows.clear();
     _addRow();
     _loadInvoiceNumber();
+    _loadSummary();
   }
 
   Future<void> _confirmClear() async {
@@ -357,6 +373,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.all(12),
           children: [
+            _buildSummaryCard(),
+            const SizedBox(height: 12),
             _buildHeaderCard(cs, isDark),
             const SizedBox(height: 12),
             _buildItemsCard(cs, isDark),
@@ -370,6 +388,40 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _buildSummaryCard() => Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [_primary, _mid],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.today, color: Colors.white70, size: 18),
+            const SizedBox(width: 8),
+            const Text("Today's Sales",
+                style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500)),
+            const Spacer(),
+            _SummaryPill(
+              icon: Icons.receipt_long,
+              label: '$_todayCount invoice${_todayCount == 1 ? '' : 's'}',
+            ),
+            const SizedBox(width: 10),
+            _SummaryPill(
+              icon: Icons.currency_rupee,
+              label: NumberFormat('#,##0.00').format(_todayTotal),
+              bold: true,
+            ),
+          ],
+        ),
+      );
 
   Widget _buildHeaderCard(ColorScheme cs, bool isDark) => Card(
         shape:
@@ -633,6 +685,40 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SummaryPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool bold;
+  const _SummaryPill(
+      {required this.icon, required this.label, this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 13),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

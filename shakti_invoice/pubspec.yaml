@@ -33,6 +33,9 @@ dependencies:
   # Persistent key-value storage for store settings
   shared_preferences: ^2.2.2
 
+  # File picker for backup restore
+  file_picker: ^8.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
