@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database_helper.dart';
+import '../main.dart' show themeModeNotifier;
 import '../models/invoice.dart';
 import '../models/invoice_item.dart';
 import '../services/pdf_service.dart';
@@ -121,6 +122,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return items;
   }
 
+  bool get _hasContent {
+    if (_customerCtrl.text.isNotEmpty) return true;
+    return _rows.any((r) =>
+        r['name']!.text.isNotEmpty ||
+        r['qty']!.text.isNotEmpty ||
+        r['price']!.text.isNotEmpty);
+  }
+
   void _clearForm() {
     _customerCtrl.clear();
     for (final row in _rows) {
@@ -131,6 +140,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _rows.clear();
     _addRow();
     _loadInvoiceNumber();
+  }
+
+  Future<void> _confirmClear() async {
+    if (!_hasContent) {
+      _clearForm();
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear Invoice?'),
+        content: const Text(
+            'All entered data will be lost. Are you sure you want to clear?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) _clearForm();
   }
 
   Future<void> _openSettings() async {
@@ -168,7 +204,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final invoiceId = await _db.insertInvoice(invoice, items);
 
-      // Pass current store settings into PDF generation
       final pdfPath = await PdfService.generateReceipt(
         invoice: invoice,
         items: items,
@@ -210,7 +245,6 @@ class _HomeScreenState extends State<HomeScreen> {
         content: Text(
           '${invoice.invoiceNo}  •  ${invoice.customer}  •  Rs.${moneyFmt.format(invoice.grandTotal)}',
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.black54),
         ),
         actions: [
           TextButton.icon(
@@ -255,8 +289,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F8),
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -286,6 +322,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: themeModeNotifier,
+            builder: (_, mode, __) => IconButton(
+              icon: Icon(
+                mode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode,
+                color: Colors.white,
+              ),
+              tooltip: mode == ThemeMode.dark ? 'Light mode' : 'Dark mode',
+              onPressed: () {
+                themeModeNotifier.value = mode == ThemeMode.dark
+                    ? ThemeMode.light
+                    : ThemeMode.dark;
+              },
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
             tooltip: 'Invoice History',
@@ -306,9 +357,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            _buildHeaderCard(),
+            _buildHeaderCard(cs, isDark),
             const SizedBox(height: 12),
-            _buildItemsCard(),
+            _buildItemsCard(cs, isDark),
             const SizedBox(height: 12),
             _buildTotalRow(),
             const SizedBox(height: 16),
@@ -320,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeaderCard() => Card(
+  Widget _buildHeaderCard(ColorScheme cs, bool isDark) => Card(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
@@ -333,15 +384,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     _invoiceNo,
-                    style: const TextStyle(
-                      color: _primary,
+                    style: TextStyle(
+                      color: cs.primary,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
                   Text(
                     _dateTimeStr,
-                    style: const TextStyle(color: Colors.black54, fontSize: 12),
+                    style: TextStyle(
+                        color: cs.onSurfaceVariant, fontSize: 12),
                   ),
                 ],
               ),
@@ -350,12 +402,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 controller: _customerCtrl,
                 decoration: InputDecoration(
                   labelText: 'Customer Name',
-                  prefixIcon: const Icon(Icons.person, color: _mid),
+                  prefixIcon: Icon(Icons.person, color: cs.primary),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: _primary, width: 2),
+                    borderSide: BorderSide(color: cs.primary, width: 2),
                   ),
                 ),
                 textCapitalization: TextCapitalization.words,
@@ -365,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  Widget _buildItemsCard() => Card(
+  Widget _buildItemsCard(ColorScheme cs, bool isDark) => Card(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
@@ -373,55 +425,58 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Items',
+              Text('Items',
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      color: _primary)),
+                      color: cs.primary)),
               const SizedBox(height: 8),
-              const Row(
+              Row(
                 children: [
                   Expanded(
                       flex: 3,
                       child: Text('Item',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.black54))),
-                  SizedBox(width: 8),
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant))),
+                  const SizedBox(width: 8),
                   SizedBox(
                       width: 64,
                       child: Text('Qty',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.black54))),
-                  SizedBox(width: 8),
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant))),
+                  const SizedBox(width: 8),
                   SizedBox(
                       width: 80,
                       child: Text('Price',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.black54))),
-                  SizedBox(width: 8),
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant))),
+                  const SizedBox(width: 8),
                   SizedBox(
                       width: 72,
                       child: Text('Total',
                           style: TextStyle(
-                              fontSize: 11, color: Colors.black54))),
-                  SizedBox(width: 32),
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant))),
+                  const SizedBox(width: 32),
                 ],
               ),
               const Divider(),
-              ...List.generate(_rows.length, (i) => _buildItemRow(i)),
+              ...List.generate(_rows.length, (i) => _buildItemRow(i, cs)),
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: _addRow,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add Item'),
-                style: TextButton.styleFrom(foregroundColor: _mid),
               ),
             ],
           ),
         ),
       );
 
-  Widget _buildItemRow(int i) {
+  Widget _buildItemRow(int i, ColorScheme cs) {
     return StatefulBuilder(
       builder: (context, rowSetState) {
         final total = _rowTotal(i);
@@ -444,7 +499,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 flex: 3,
                 child: TextField(
                   controller: _rows[i]['name'],
-                  decoration: _inputDeco('Name'),
+                  decoration: _inputDeco('Name', cs),
                   textCapitalization: TextCapitalization.sentences,
                   style: const TextStyle(fontSize: 13),
                 ),
@@ -454,7 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 60,
                 child: TextField(
                   controller: _rows[i]['qty'],
-                  decoration: _inputDeco('Qty'),
+                  decoration: _inputDeco('Qty', cs),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 13),
@@ -465,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 78,
                 child: TextField(
                   controller: _rows[i]['price'],
-                  decoration: _inputDeco('Price'),
+                  decoration: _inputDeco('Price', cs),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 13),
@@ -479,14 +534,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 12,
-                    color: total > 0 ? _primary : Colors.black38,
+                    color: total > 0 ? cs.primary : cs.onSurfaceVariant,
                     fontWeight:
                         total > 0 ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close, size: 18, color: Colors.black38),
+                icon: Icon(Icons.close,
+                    size: 18, color: cs.onSurfaceVariant),
                 padding: EdgeInsets.zero,
                 onPressed: () => _removeRow(i),
               ),
@@ -497,16 +553,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  InputDecoration _inputDeco(String hint) => InputDecoration(
+  InputDecoration _inputDeco(String hint, ColorScheme cs) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
         isDense: true,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: _primary),
+          borderSide: BorderSide(color: cs.primary),
         ),
       );
 
@@ -536,44 +591,47 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  Widget _buildButtons() => Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.clear),
-              label: const Text('Clear'),
-              onPressed: _clearForm,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: _mid),
-                foregroundColor: _mid,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
+  Widget _buildButtons() {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.clear),
+            label: const Text('Clear'),
+            onPressed: _confirmClear,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: BorderSide(color: cs.primary),
+              foregroundColor: cs.primary,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: ElevatedButton.icon(
-              icon: _loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
-                  : const Icon(Icons.picture_as_pdf),
-              label: Text(_loading ? 'Generating...' : 'Generate Invoice'),
-              onPressed: _loading ? null : _generate,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                backgroundColor: _primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: ElevatedButton.icon(
+            icon: _loading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.picture_as_pdf),
+            label: Text(_loading ? 'Generating...' : 'Generate Invoice'),
+            onPressed: _loading ? null : _generate,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 }
