@@ -26,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _customerCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  String _invoiceNo = 'SGS-...';
+  String _invoiceNo = 'IC-...';
   String _dateTimeStr = '';
   Timer? _clockTimer;
   bool _loading = false;

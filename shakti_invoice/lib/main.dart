@@ -3,16 +3,16 @@ import 'screens/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ShaktiInvoiceApp());
+  runApp(const InvoiceCreatorApp());
 }
 
-class ShaktiInvoiceApp extends StatelessWidget {
-  const ShaktiInvoiceApp({super.key});
+class InvoiceCreatorApp extends StatelessWidget {
+  const InvoiceCreatorApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Shakti Invoice',
+      title: 'Invoice Creator',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

@@ -53,12 +53,12 @@ class DatabaseHelper {
     ''');
   }
 
-  /// Returns next invoice number like SGS-001
+  /// Returns next invoice number like IC-001
   Future<String> nextInvoiceNumber() async {
     final db = await database;
     final result = await db.rawQuery('SELECT MAX(id) as max_id FROM invoices');
     final lastId = (result.first['max_id'] as int?) ?? 0;
-    return 'SGS-${(lastId + 1).toString().padLeft(3, '0')}';
+    return 'IC-${(lastId + 1).toString().padLeft(3, '0')}';
   }
 
   /// Insert invoice + items, returns the new invoice id
