@@ -1,5 +1,5 @@
 name: shakti_invoice
-description: Shakti General Store - Invoice Generator
+description: Invoice Bills - Invoice Generator
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -43,3 +43,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/icon/

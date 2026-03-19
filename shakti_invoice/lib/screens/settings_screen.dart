@@ -114,12 +114,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
       final dir = await getTemporaryDirectory();
       final name =
-          'shakti_bills_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
+          'invoice_bills_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
       final file = File('${dir.path}/$name');
       await file.writeAsString(jsonStr);
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/json')],
-        subject: 'Shakti Bills Backup – $name',
+        subject: 'Invoice Bills Backup – $name',
       );
     } catch (e) {
       if (mounted) {
@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final content = await File(result.files.single.path!).readAsString();
       final data = jsonDecode(content) as Map<String, dynamic>;
       if (data['version'] == null || data['invoices'] == null) {
-        throw const FormatException('Not a valid Shakti Bills backup file.');
+        throw const FormatException('Not a valid Invoice Bills backup file.');
       }
       await _db.importData(data);
       if (mounted) {

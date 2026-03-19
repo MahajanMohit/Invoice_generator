@@ -16,7 +16,7 @@ class InvoiceCreatorApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeModeNotifier,
       builder: (_, mode, __) => MaterialApp(
-        title: 'Invoice Creator',
+        title: 'Invoice Bills',
         debugShowCheckedModeBanner: false,
         themeMode: mode,
         theme: ThemeData(
