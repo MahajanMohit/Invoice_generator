@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../models/invoice.dart';
 import '../models/invoice_item.dart';
+import 'store_settings.dart';
 
 class PdfService {
   static const PdfColor _primary = PdfColor.fromInt(0xFF1a237e);
@@ -17,6 +18,7 @@ class PdfService {
   static Future<String> generateReceipt({
     required Invoice invoice,
     required List<InvoiceItem> items,
+    required StoreSettings settings,
   }) async {
     final doc = pw.Document();
 
@@ -32,9 +34,9 @@ class PdfService {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            // Store header
+            // Store header — uses user-defined store name & location
             pw.Text(
-              'Shakti General Store, Dablehar',
+              settings.displayName,
               style: pw.TextStyle(
                 fontWeight: pw.FontWeight.bold,
                 fontSize: 9,
@@ -42,16 +44,19 @@ class PdfService {
               ),
               textAlign: pw.TextAlign.center,
             ),
-            pw.SizedBox(height: 1 * PdfPageFormat.mm),
-            pw.Text(
-              'Quality Products | Trusted Service',
-              style: pw.TextStyle(
-                fontStyle: pw.FontStyle.italic,
-                fontSize: 6.5,
-                color: _mid,
+            // Tagline — shown only if set
+            if (settings.storeTagline.isNotEmpty) ...[
+              pw.SizedBox(height: 1 * PdfPageFormat.mm),
+              pw.Text(
+                settings.storeTagline,
+                style: pw.TextStyle(
+                  fontStyle: pw.FontStyle.italic,
+                  fontSize: 6.5,
+                  color: _mid,
+                ),
+                textAlign: pw.TextAlign.center,
               ),
-              textAlign: pw.TextAlign.center,
-            ),
+            ],
             pw.SizedBox(height: 1 * PdfPageFormat.mm),
             pw.Divider(color: _primary, thickness: 1),
             pw.Text(
@@ -83,7 +88,6 @@ class PdfService {
                 3: const pw.FlexColumnWidth(1.8),
               },
               children: [
-                // Header row
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: _primary),
                   children: [
@@ -93,7 +97,6 @@ class PdfService {
                     _tableHeader('Total(Rs)'),
                   ],
                 ),
-                // Data rows
                 for (int i = 0; i < items.length; i++)
                   pw.TableRow(
                     decoration: pw.BoxDecoration(
@@ -130,25 +133,29 @@ class PdfService {
             pw.SizedBox(height: 2 * PdfPageFormat.mm),
             pw.Divider(color: _grid, thickness: 0.5),
 
-            // Footer
-            pw.Text(
-              'Thank you for shopping!',
-              style: pw.TextStyle(
-                fontStyle: pw.FontStyle.italic,
-                fontSize: 6,
-                color: _footer,
+            // Footer lines — user-defined
+            if (settings.footerLine1.isNotEmpty)
+              pw.Text(
+                settings.footerLine1,
+                style: pw.TextStyle(
+                  fontStyle: pw.FontStyle.italic,
+                  fontSize: 6,
+                  color: _footer,
+                ),
+                textAlign: pw.TextAlign.center,
               ),
-              textAlign: pw.TextAlign.center,
-            ),
-            pw.Text(
-              'Shakti General Store',
-              style: pw.TextStyle(
-                fontStyle: pw.FontStyle.italic,
-                fontSize: 6,
-                color: _footer,
+            if (settings.footerLine2.isNotEmpty) ...[
+              pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+              pw.Text(
+                settings.footerLine2,
+                style: pw.TextStyle(
+                  fontStyle: pw.FontStyle.italic,
+                  fontSize: 6,
+                  color: _footer,
+                ),
+                textAlign: pw.TextAlign.center,
               ),
-              textAlign: pw.TextAlign.center,
-            ),
+            ],
           ],
         );
       },
@@ -157,8 +164,7 @@ class PdfService {
     // Save to app documents directory
     final docsDir = await getApplicationDocumentsDirectory();
     final now = DateTime.now();
-    final yearMonth =
-        '${now.year}${DateFormat('MM').format(now)}';
+    final yearMonth = '${now.year}${DateFormat('MM').format(now)}';
     final folder = Directory('${docsDir.path}/invoices/$yearMonth');
     await folder.create(recursive: true);
 
@@ -179,10 +185,7 @@ class PdfService {
           children: [
             pw.TextSpan(
               text: '$label: ',
-              style: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 7,
-              ),
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
             ),
             pw.TextSpan(
               text: value,
@@ -205,7 +208,8 @@ class PdfService {
         ),
       );
 
-  static pw.Widget _tableCell(String text, {pw.TextAlign align = pw.TextAlign.left}) =>
+  static pw.Widget _tableCell(String text,
+          {pw.TextAlign align = pw.TextAlign.left}) =>
       pw.Padding(
         padding: const pw.EdgeInsets.all(2),
         child: pw.Text(
@@ -220,6 +224,5 @@ class PdfService {
     return v.toStringAsFixed(2);
   }
 
-  static String _fmtMoney(double v) =>
-      NumberFormat('#,##0.00').format(v);
+  static String _fmtMoney(double v) => NumberFormat('#,##0.00').format(v);
 }

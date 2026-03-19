@@ -30,6 +30,9 @@ dependencies:
   # Open files (PDF viewer)
   open_filex: ^4.3.4
 
+  # Persistent key-value storage for store settings
+  shared_preferences: ^2.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

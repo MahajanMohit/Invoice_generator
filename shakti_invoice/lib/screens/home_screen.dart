@@ -7,7 +7,9 @@ import '../database/database_helper.dart';
 import '../models/invoice.dart';
 import '../models/invoice_item.dart';
 import '../services/pdf_service.dart';
+import '../services/store_settings.dart';
 import 'history_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _dateTimeStr = '';
   Timer? _clockTimer;
   bool _loading = false;
+  StoreSettings _settings = StoreSettings.defaults();
 
   // Each row: {name, qty, price} controllers
   final List<Map<String, TextEditingController>> _rows = [];
@@ -36,8 +39,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _updateClock();
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
+    _clockTimer =
+        Timer.periodic(const Duration(seconds: 1), (_) => _updateClock());
     _loadInvoiceNumber();
+    _loadSettings();
     _addRow();
   }
 
@@ -63,6 +68,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadInvoiceNumber() async {
     final no = await _db.nextInvoiceNumber();
     if (mounted) setState(() => _invoiceNo = no);
+  }
+
+  Future<void> _loadSettings() async {
+    final s = await StoreSettingsService.load();
+    if (mounted) setState(() => _settings = s);
   }
 
   void _addRow() {
@@ -123,6 +133,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadInvoiceNumber();
   }
 
+  Future<void> _openSettings() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+    if (changed == true) _loadSettings();
+  }
+
   Future<void> _generate() async {
     final customer = _customerCtrl.text.trim();
     if (customer.isEmpty) {
@@ -148,21 +166,18 @@ class _HomeScreenState extends State<HomeScreen> {
         grandTotal: double.parse(_grandTotal.toStringAsFixed(2)),
       );
 
-      // Insert into DB first to get the id
       final invoiceId = await _db.insertInvoice(invoice, items);
 
-      // Generate PDF
+      // Pass current store settings into PDF generation
       final pdfPath = await PdfService.generateReceipt(
         invoice: invoice,
         items: items,
+        settings: _settings,
       );
 
-      // Update PDF path in DB
       await _db.updatePdfPath(invoiceId, pdfPath);
 
-      if (mounted) {
-        _showSuccessDialog(pdfPath, invoice);
-      }
+      if (mounted) _showSuccessDialog(pdfPath, invoice);
     } catch (e) {
       if (mounted) _showSnack('Error: $e', isError: true);
     } finally {
@@ -188,7 +203,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(Icons.check, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 12),
-            const Text('Invoice Generated!', style: TextStyle(fontSize: 18)),
+            const Text('Invoice Generated!',
+                style: TextStyle(fontSize: 18)),
           ],
         ),
         content: Text(
@@ -232,7 +248,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: isError ? const Color(0xFFe53935) : const Color(0xFF2e7d32),
+      backgroundColor:
+          isError ? const Color(0xFFe53935) : const Color(0xFF2e7d32),
     ));
   }
 
@@ -250,13 +267,22 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Shakti General Store',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            Text('Dablehar',
-                style: TextStyle(color: Colors.white70, fontSize: 11)),
+            Text(
+              _settings.displayName,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
+            ),
+            if (_settings.storeTagline.isNotEmpty)
+              Text(
+                _settings.storeTagline,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+                overflow: TextOverflow.ellipsis,
+              ),
           ],
         ),
         actions: [
@@ -267,6 +293,11 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               MaterialPageRoute(builder: (_) => const HistoryScreen()),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white),
+            tooltip: 'Store Settings',
+            onPressed: _openSettings,
           ),
         ],
       ),
@@ -290,7 +321,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeaderCard() => Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -309,10 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   Text(
                     _dateTimeStr,
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 ],
               ),
@@ -337,7 +366,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _buildItemsCard() => Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -349,21 +379,35 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontSize: 15,
                       color: _primary)),
               const SizedBox(height: 8),
-              // Column headers
               const Row(
                 children: [
-                  Expanded(flex: 3, child: Text('Item', style: TextStyle(fontSize: 11, color: Colors.black54))),
+                  Expanded(
+                      flex: 3,
+                      child: Text('Item',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.black54))),
                   SizedBox(width: 8),
-                  SizedBox(width: 64, child: Text('Qty', style: TextStyle(fontSize: 11, color: Colors.black54))),
+                  SizedBox(
+                      width: 64,
+                      child: Text('Qty',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.black54))),
                   SizedBox(width: 8),
-                  SizedBox(width: 80, child: Text('Price', style: TextStyle(fontSize: 11, color: Colors.black54))),
+                  SizedBox(
+                      width: 80,
+                      child: Text('Price',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.black54))),
                   SizedBox(width: 8),
-                  SizedBox(width: 72, child: Text('Total', style: TextStyle(fontSize: 11, color: Colors.black54))),
+                  SizedBox(
+                      width: 72,
+                      child: Text('Total',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.black54))),
                   SizedBox(width: 32),
                 ],
               ),
               const Divider(),
-              // Item rows
               ...List.generate(_rows.length, (i) => _buildItemRow(i)),
               const SizedBox(height: 8),
               TextButton.icon(
@@ -396,7 +440,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Item name
               Expanded(
                 flex: 3,
                 child: TextField(
@@ -407,44 +450,41 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              // Qty
               SizedBox(
                 width: 60,
                 child: TextField(
                   controller: _rows[i]['qty'],
                   decoration: _inputDeco('Qty'),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 13),
                 ),
               ),
               const SizedBox(width: 6),
-              // Price
               SizedBox(
                 width: 78,
                 child: TextField(
                   controller: _rows[i]['price'],
                   decoration: _inputDeco('Price'),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 13),
                 ),
               ),
               const SizedBox(width: 6),
-              // Total (read-only)
               SizedBox(
                 width: 70,
                 child: Text(
-                  total > 0
-                      ? NumberFormat('#,##0.00').format(total)
-                      : '—',
+                  total > 0 ? NumberFormat('#,##0.00').format(total) : '—',
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 12,
                     color: total > 0 ? _primary : Colors.black38,
-                    fontWeight: total > 0 ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        total > 0 ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
-              // Delete button
               IconButton(
                 icon: const Icon(Icons.close, size: 18, color: Colors.black38),
                 padding: EdgeInsets.zero,
@@ -461,7 +501,8 @@ class _HomeScreenState extends State<HomeScreen> {
         hintText: hint,
         hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
@@ -471,7 +512,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildTotalRow() => Card(
         color: _primary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
