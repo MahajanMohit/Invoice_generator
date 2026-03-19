@@ -99,8 +99,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F8),
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -128,7 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  _sectionHeader(Icons.store, 'Store Identity'),
+                  _sectionHeader(Icons.store, 'Store Identity', cs),
                   const SizedBox(height: 10),
                   _field(
                     controller: _nameCtrl,
@@ -136,6 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     hint: 'e.g. My General Store',
                     required: true,
                     maxLength: 60,
+                    cs: cs,
                   ),
                   const SizedBox(height: 12),
                   _field(
@@ -144,6 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     hint: 'e.g. Dablehar  (optional)',
                     required: false,
                     maxLength: 60,
+                    cs: cs,
                   ),
                   const SizedBox(height: 12),
                   _field(
@@ -152,13 +154,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     hint: 'e.g. Quality Products | Trusted Service',
                     required: false,
                     maxLength: 80,
+                    cs: cs,
                   ),
                   const SizedBox(height: 24),
-                  _sectionHeader(Icons.receipt_long, 'Receipt Footer'),
+                  _sectionHeader(Icons.receipt_long, 'Receipt Footer', cs),
                   const SizedBox(height: 4),
                   Text(
                     'These lines appear at the bottom of every printed receipt.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.55)),
                   ),
                   const SizedBox(height: 10),
                   _field(
@@ -167,6 +172,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     hint: 'e.g. Thank you for shopping with us!',
                     required: false,
                     maxLength: 80,
+                    cs: cs,
                   ),
                   const SizedBox(height: 12),
                   _field(
@@ -175,9 +181,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     hint: 'e.g. Visit us again!  (optional)',
                     required: false,
                     maxLength: 80,
+                    cs: cs,
                   ),
                   const SizedBox(height: 24),
-                  _buildPreview(),
+                  _buildPreview(cs),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -207,15 +214,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _sectionHeader(IconData icon, String title) => Row(
+  Widget _sectionHeader(IconData icon, String title, ColorScheme cs) => Row(
         children: [
-          Icon(icon, size: 18, color: _primary),
+          Icon(icon, size: 18, color: cs.primary),
           const SizedBox(width: 8),
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
-                  color: _primary)),
+                  color: cs.primary)),
         ],
       );
 
@@ -225,6 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String hint,
     required bool required,
     required int maxLength,
+    required ColorScheme cs,
   }) =>
       TextFormField(
         controller: controller,
@@ -236,7 +244,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: _primary, width: 2),
+            borderSide: BorderSide(color: cs.primary, width: 2),
           ),
         ),
         validator: required
@@ -245,7 +253,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
 
   /// Live preview of how the receipt header/footer will look
-  Widget _buildPreview() {
+  Widget _buildPreview(ColorScheme cs) {
     return AnimatedBuilder(
       animation: Listenable.merge(
           [_nameCtrl, _taglineCtrl, _locationCtrl, _footer1Ctrl, _footer2Ctrl]),
@@ -256,73 +264,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final f1 = _footer1Ctrl.text.trim();
         final f2 = _footer2Ctrl.text.trim();
         final displayName = location.isEmpty ? name : '$name, $location';
+        final dividerColor = cs.outline.withOpacity(0.35);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionHeader(Icons.visibility, 'Receipt Preview'),
+            _sectionHeader(Icons.visibility, 'Receipt Preview', cs),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cs.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFc5cae9)),
+                border: Border.all(color: cs.outline.withOpacity(0.4)),
               ),
               child: Column(
                 children: [
                   Text(
                     displayName.isEmpty ? '(Store Name)' : displayName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      color: _primary,
+                      color: cs.primary,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   if (tagline.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(tagline,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11,
                             fontStyle: FontStyle.italic,
-                            color: _mid),
+                            color: cs.primary.withOpacity(0.75)),
                         textAlign: TextAlign.center),
                   ],
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(color: Color(0xFFc5cae9)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(color: dividerColor),
                   ),
-                  const Text('RECEIPT',
+                  Text('RECEIPT',
                       style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
-                          color: _mid)),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(color: Color(0xFFc5cae9)),
+                          color: cs.onSurface.withOpacity(0.6))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(color: dividerColor),
                   ),
-                  const Text('... invoice items ...',
-                      style: TextStyle(fontSize: 11, color: Colors.black38)),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(color: Color(0xFFc5cae9)),
+                  Text('... invoice items ...',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withOpacity(0.35))),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(color: dividerColor),
                   ),
                   if (f1.isNotEmpty)
                     Text(f1,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11,
                             fontStyle: FontStyle.italic,
-                            color: Colors.black54),
+                            color: cs.onSurface.withOpacity(0.55)),
                         textAlign: TextAlign.center),
                   if (f2.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(f2,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11,
                             fontStyle: FontStyle.italic,
-                            color: Colors.black54),
+                            color: cs.onSurface.withOpacity(0.55)),
                         textAlign: TextAlign.center),
                   ],
                 ],

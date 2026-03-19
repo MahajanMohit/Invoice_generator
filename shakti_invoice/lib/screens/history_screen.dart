@@ -65,8 +65,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F8),
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -90,25 +90,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _invoices.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.receipt_long, size: 64, color: Colors.black26),
-                      SizedBox(height: 16),
+                      Icon(Icons.receipt_long,
+                          size: 64,
+                          color: cs.onSurface.withOpacity(0.25)),
+                      const SizedBox(height: 16),
                       Text('No invoices yet.',
-                          style: TextStyle(color: Colors.black45)),
+                          style: TextStyle(
+                              color: cs.onSurface.withOpacity(0.45))),
                     ],
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: _buildList(),
+                  child: _buildList(cs),
                 ),
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(ColorScheme cs) {
     // Group by date label
     final groups = <String, List<Invoice>>{};
     for (final inv in _invoices) {
@@ -120,7 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     groups.forEach((label, list) {
       sections.add(_DateHeader(label: label));
       for (final inv in list) {
-        sections.add(_InvoiceCard(invoice: inv, onTap: () => _openInvoice(inv)));
+        sections.add(_InvoiceCard(invoice: inv, onTap: () => _openInvoice(inv, cs)));
       }
     });
 
@@ -130,7 +133,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  void _openInvoice(Invoice inv) {
+  void _openInvoice(Invoice inv, ColorScheme cs) {
     if (inv.pdfPath == null || inv.pdfPath!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('PDF not available for this invoice.')),
@@ -149,18 +152,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(inv.invoiceNo,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: _primary)),
+                      color: cs.primary)),
               Text('${inv.customer}  •  ${inv.date}',
-                  style: const TextStyle(color: Colors.black54)),
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.55))),
               Text(
                 'Rs. ${NumberFormat('#,##0.00').format(inv.grandTotal)}',
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: _primary),
+                    color: cs.primary),
               ),
               const SizedBox(height: 16),
               Row(
@@ -192,8 +195,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             text: 'Invoice ${inv.invoiceNo}');
                       },
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _mid),
-                        foregroundColor: _mid,
+                        side: BorderSide(color: cs.primary),
+                        foregroundColor: cs.primary,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
@@ -214,17 +217,20 @@ class _DateHeader extends StatelessWidget {
   const _DateHeader({required this.label});
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-            color: Color(0xFF1a237e),
-          ),
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          color: cs.primary,
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _InvoiceCard extends StatelessWidget {
@@ -234,6 +240,7 @@ class _InvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -250,22 +257,24 @@ class _InvoiceCard extends StatelessWidget {
                   children: [
                     Text(
                       invoice.invoiceNo,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                        color: Color(0xFF1a237e),
+                        color: cs.primary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       invoice.customer,
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(
+                          fontSize: 13, color: cs.onSurface),
                     ),
                     if (invoice.time.isNotEmpty)
                       Text(
                         invoice.time,
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.black45),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.45)),
                       ),
                   ],
                 ),
@@ -275,14 +284,15 @@ class _InvoiceCard extends StatelessWidget {
                 children: [
                   Text(
                     'Rs. ${NumberFormat('#,##0.00').format(invoice.grandTotal)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1a237e),
+                      color: cs.primary,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right, color: Colors.black26),
+                  Icon(Icons.chevron_right,
+                      color: cs.onSurface.withOpacity(0.25)),
                 ],
               ),
             ],
