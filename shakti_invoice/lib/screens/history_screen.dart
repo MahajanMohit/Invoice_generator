@@ -19,16 +19,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final _db = DatabaseHelper();
   List<Invoice> _invoices = [];
   bool _loading = true;
+  bool _showLast30Days = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    // Silently purge invoices older than 30 days, then load
+    _db.deleteOldInvoices(30).then((_) => _load());
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final list = await _db.listInvoices();
+    final list = _showLast30Days
+        ? await _db.listInvoicesForDays(30)
+        : await _db.listTodayInvoices();
     if (mounted) {
       setState(() {
         _invoices = list;
@@ -49,7 +53,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
       final today = DateTime.now();
       final yesterday = today.subtract(const Duration(days: 1));
-      if (d.year == today.year && d.month == today.month && d.day == today.day) {
+      if (d.year == today.year &&
+          d.month == today.month &&
+          d.day == today.day) {
         return 'Today';
       }
       if (d.year == yesterday.year &&
@@ -87,32 +93,93 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _invoices.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.receipt_long,
-                          size: 64,
-                          color: cs.onSurface.withOpacity(0.25)),
-                      const SizedBox(height: 16),
-                      Text('No invoices yet.',
-                          style: TextStyle(
-                              color: cs.onSurface.withOpacity(0.45))),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: _buildList(cs),
-                ),
+      body: Column(
+        children: [
+          _buildToggleBar(cs),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _invoices.isEmpty
+                    ? _buildEmpty(cs)
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: _buildList(cs),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleBar(ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: Row(
+        children: [
+          _ToggleChip(
+            label: 'Today',
+            selected: !_showLast30Days,
+            cs: cs,
+            onTap: () {
+              if (_showLast30Days) {
+                setState(() => _showLast30Days = false);
+                _load();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _ToggleChip(
+            label: 'Last 30 Days',
+            selected: _showLast30Days,
+            cs: cs,
+            onTap: () {
+              if (!_showLast30Days) {
+                setState(() => _showLast30Days = true);
+                _load();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty(ColorScheme cs) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long,
+              size: 64, color: cs.onSurface.withOpacity(0.25)),
+          const SizedBox(height: 16),
+          Text(
+            _showLast30Days
+                ? 'No invoices in the last 30 days.'
+                : 'No invoices generated today.',
+            style:
+                TextStyle(color: cs.onSurface.withOpacity(0.45)),
+          ),
+          if (!_showLast30Days) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                setState(() => _showLast30Days = true);
+                _load();
+              },
+              child: const Text('View older invoices'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   Widget _buildList(ColorScheme cs) {
-    // Group by date label
+    // Group by date label, compute per-day total
     final groups = <String, List<Invoice>>{};
     for (final inv in _invoices) {
       final label = _dateLabel(inv.date);
@@ -121,9 +188,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     final sections = <Widget>[];
     groups.forEach((label, list) {
-      sections.add(_DateHeader(label: label));
+      final dayTotal = list.fold<double>(0, (s, inv) => s + inv.grandTotal);
+      sections.add(_DateHeader(label: label, dayTotal: dayTotal));
       for (final inv in list) {
-        sections.add(_InvoiceCard(invoice: inv, onTap: () => _openInvoice(inv, cs)));
+        sections.add(
+            _InvoiceCard(invoice: inv, onTap: () => _openInvoice(inv, cs)));
       }
     });
 
@@ -157,7 +226,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       fontSize: 18,
                       color: cs.primary)),
               Text('${inv.customer}  •  ${inv.date}',
-                  style: TextStyle(color: cs.onSurface.withOpacity(0.55))),
+                  style:
+                      TextStyle(color: cs.onSurface.withOpacity(0.55))),
               Text(
                 'Rs. ${NumberFormat('#,##0.00').format(inv.grandTotal)}',
                 style: TextStyle(
@@ -212,22 +282,77 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 }
 
+class _ToggleChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final ColorScheme cs;
+  final VoidCallback onTap;
+
+  const _ToggleChip({
+    required this.label,
+    required this.selected,
+    required this.cs,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? cs.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected ? cs.primary : cs.outline, width: 1.2),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight:
+                selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? Colors.white : cs.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DateHeader extends StatelessWidget {
   final String label;
-  const _DateHeader({required this.label});
+  final double dayTotal;
+  const _DateHeader({required this.label, required this.dayTotal});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-          color: cs.primary,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: cs.primary,
+            ),
+          ),
+          Text(
+            'Total  Rs. ${NumberFormat('#,##0.00').format(dayTotal)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.primary.withOpacity(0.75),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -243,12 +368,14 @@ class _InvoiceCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
               Expanded(
@@ -266,8 +393,7 @@ class _InvoiceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       invoice.customer,
-                      style: TextStyle(
-                          fontSize: 13, color: cs.onSurface),
+                      style: TextStyle(fontSize: 13, color: cs.onSurface),
                     ),
                     if (invoice.time.isNotEmpty)
                       Text(

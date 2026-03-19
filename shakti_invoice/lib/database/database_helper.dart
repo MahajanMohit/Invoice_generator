@@ -91,6 +91,42 @@ class DatabaseHelper {
     return rows.map((r) => Invoice.fromMap(r)).toList();
   }
 
+  /// List invoices created today (device local time)
+  Future<List<Invoice>> listTodayInvoices() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      "SELECT * FROM invoices WHERE date(created_at) = date('now','localtime') ORDER BY id DESC",
+    );
+    return rows.map((r) => Invoice.fromMap(r)).toList();
+  }
+
+  /// List invoices from the last [days] days (inclusive)
+  Future<List<Invoice>> listInvoicesForDays(int days) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      "SELECT * FROM invoices WHERE created_at >= datetime('now','localtime','-$days days') ORDER BY id DESC",
+    );
+    return rows.map((r) => Invoice.fromMap(r)).toList();
+  }
+
+  /// Delete invoices (and their items) older than [keepDays] days.
+  /// Returns the number of invoice rows deleted.
+  Future<int> deleteOldInvoices(int keepDays) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final oldRows = await txn.rawQuery(
+        "SELECT id FROM invoices WHERE created_at < datetime('now','localtime','-$keepDays days')",
+      );
+      if (oldRows.isEmpty) return 0;
+      final ids = oldRows.map((r) => r['id'] as int).toList();
+      final placeholders = List.filled(ids.length, '?').join(',');
+      await txn.delete('invoice_items',
+          where: 'invoice_id IN ($placeholders)', whereArgs: ids);
+      return txn.delete('invoices',
+          where: 'id IN ($placeholders)', whereArgs: ids);
+    });
+  }
+
   /// Get a single invoice with its items
   Future<Invoice?> getInvoice(String invoiceNo) async {
     final db = await database;

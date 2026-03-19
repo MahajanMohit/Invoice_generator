@@ -8,7 +8,7 @@
         android:maxSdkVersion="32"/>
 
     <application
-        android:label="Invoice Creator"
+        android:label="Shakti Bills"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">
