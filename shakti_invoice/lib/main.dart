@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
-void main() {
+const _kDarkModeKey = 'theme_dark';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  themeModeNotifier.value =
+      (prefs.getBool(_kDarkModeKey) ?? false) ? ThemeMode.dark : ThemeMode.light;
+  themeModeNotifier.addListener(() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kDarkModeKey, themeModeNotifier.value == ThemeMode.dark);
+  });
   runApp(const InvoiceCreatorApp());
 }
 
