@@ -19,16 +19,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final _db = DatabaseHelper();
   List<Invoice> _invoices = [];
   bool _loading = true;
+  bool _showLast30Days = false;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
+    // Silently purge invoices older than 30 days, then load
+    _db.deleteOldInvoices(30).then((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Invoice> get _filtered {
+    if (_searchQuery.isEmpty) return _invoices;
+    return _invoices
+        .where((inv) =>
+            inv.invoiceNo.toLowerCase().contains(_searchQuery) ||
+            inv.customer.toLowerCase().contains(_searchQuery))
+        .toList();
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final list = await _db.listInvoices();
+    final list = _showLast30Days
+        ? await _db.listInvoicesForDays(30)
+        : await _db.listTodayInvoices();
     if (mounted) {
       setState(() {
         _invoices = list;
@@ -49,7 +73,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
       final today = DateTime.now();
       final yesterday = today.subtract(const Duration(days: 1));
-      if (d.year == today.year && d.month == today.month && d.day == today.day) {
+      if (d.year == today.year &&
+          d.month == today.month &&
+          d.day == today.day) {
         return 'Today';
       }
       if (d.year == yesterday.year &&
@@ -65,8 +91,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F8),
       appBar: AppBar(
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -87,40 +113,135 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _invoices.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.receipt_long, size: 64, color: Colors.black26),
-                      SizedBox(height: 16),
-                      Text('No invoices yet.',
-                          style: TextStyle(color: Colors.black45)),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: _buildList(),
-                ),
+      body: Column(
+        children: [
+          _buildToggleBar(cs),
+          _buildSearchBar(cs),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _filtered.isEmpty
+                    ? _buildEmpty(cs)
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: _buildList(cs),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildList() {
-    // Group by date label
+  Widget _buildToggleBar(ColorScheme cs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+      ),
+      child: Row(
+        children: [
+          _ToggleChip(
+            label: 'Today',
+            selected: !_showLast30Days,
+            cs: cs,
+            onTap: () {
+              if (_showLast30Days) {
+                setState(() => _showLast30Days = false);
+                _load();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _ToggleChip(
+            label: 'Last 30 Days',
+            selected: _showLast30Days,
+            cs: cs,
+            onTap: () {
+              if (!_showLast30Days) {
+                setState(() => _showLast30Days = true);
+                _load();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: TextField(
+        controller: _searchCtrl,
+        decoration: InputDecoration(
+          hintText: 'Search by customer or invoice no…',
+          hintStyle: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.45)),
+          prefixIcon: Icon(Icons.search, size: 20, color: cs.onSurface.withOpacity(0.5)),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
+                  onPressed: () => _searchCtrl.clear(),
+                )
+              : null,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: cs.outline)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: cs.primary, width: 1.5)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(ColorScheme cs) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long,
+              size: 64, color: cs.onSurface.withOpacity(0.25)),
+          const SizedBox(height: 16),
+          Text(
+            _showLast30Days
+                ? 'No invoices in the last 30 days.'
+                : 'No invoices generated today.',
+            style:
+                TextStyle(color: cs.onSurface.withOpacity(0.45)),
+          ),
+          if (!_showLast30Days) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                setState(() => _showLast30Days = true);
+                _load();
+              },
+              child: const Text('View older invoices'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildList(ColorScheme cs) {
+    // Group by date label, compute per-day total
     final groups = <String, List<Invoice>>{};
-    for (final inv in _invoices) {
+    for (final inv in _filtered) {
       final label = _dateLabel(inv.date);
       groups.putIfAbsent(label, () => []).add(inv);
     }
 
     final sections = <Widget>[];
     groups.forEach((label, list) {
-      sections.add(_DateHeader(label: label));
+      final dayTotal = list.fold<double>(0, (s, inv) => s + inv.grandTotal);
+      sections.add(_DateHeader(label: label, dayTotal: dayTotal));
       for (final inv in list) {
-        sections.add(_InvoiceCard(invoice: inv, onTap: () => _openInvoice(inv)));
+        sections.add(
+            _InvoiceCard(invoice: inv, onTap: () => _openInvoice(inv, cs)));
       }
     });
 
@@ -130,7 +251,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  void _openInvoice(Invoice inv) {
+  void _openInvoice(Invoice inv, ColorScheme cs) {
     if (inv.pdfPath == null || inv.pdfPath!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('PDF not available for this invoice.')),
@@ -149,18 +270,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(inv.invoiceNo,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
-                      color: _primary)),
+                      color: cs.primary)),
               Text('${inv.customer}  •  ${inv.date}',
-                  style: const TextStyle(color: Colors.black54)),
+                  style:
+                      TextStyle(color: cs.onSurface.withOpacity(0.55))),
               Text(
                 'Rs. ${NumberFormat('#,##0.00').format(inv.grandTotal)}',
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: _primary),
+                    color: cs.primary),
               ),
               const SizedBox(height: 16),
               Row(
@@ -192,8 +314,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             text: 'Invoice ${inv.invoiceNo}');
                       },
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _mid),
-                        foregroundColor: _mid,
+                        side: BorderSide(color: cs.primary),
+                        foregroundColor: cs.primary,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
@@ -209,22 +331,80 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 }
 
-class _DateHeader extends StatelessWidget {
+class _ToggleChip extends StatelessWidget {
   final String label;
-  const _DateHeader({required this.label});
+  final bool selected;
+  final ColorScheme cs;
+  final VoidCallback onTap;
+
+  const _ToggleChip({
+    required this.label,
+    required this.selected,
+    required this.cs,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? cs.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected ? cs.primary : cs.outline, width: 1.2),
+        ),
         child: Text(
           label,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
+          style: TextStyle(
             fontSize: 13,
-            color: Color(0xFF1a237e),
+            fontWeight:
+                selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? Colors.white : cs.onSurface,
           ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+class _DateHeader extends StatelessWidget {
+  final String label;
+  final double dayTotal;
+  const _DateHeader({required this.label, required this.dayTotal});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: cs.primary,
+            ),
+          ),
+          Text(
+            'Total  Rs. ${NumberFormat('#,##0.00').format(dayTotal)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: cs.primary.withOpacity(0.75),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _InvoiceCard extends StatelessWidget {
@@ -234,14 +414,17 @@ class _InvoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
               Expanded(
@@ -250,22 +433,23 @@ class _InvoiceCard extends StatelessWidget {
                   children: [
                     Text(
                       invoice.invoiceNo,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                        color: Color(0xFF1a237e),
+                        color: cs.primary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       invoice.customer,
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 13, color: cs.onSurface),
                     ),
                     if (invoice.time.isNotEmpty)
                       Text(
                         invoice.time,
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.black45),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.45)),
                       ),
                   ],
                 ),
@@ -275,14 +459,15 @@ class _InvoiceCard extends StatelessWidget {
                 children: [
                   Text(
                     'Rs. ${NumberFormat('#,##0.00').format(invoice.grandTotal)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
-                      color: Color(0xFF1a237e),
+                      color: cs.primary,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right, color: Colors.black26),
+                  Icon(Icons.chevron_right,
+                      color: cs.onSurface.withOpacity(0.25)),
                 ],
               ),
             ],

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground: store + receipt
+  Viewport 108×108 — safe zone 18–90 (72×72 centre)
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Store roof (triangle) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,14 L82,30 L26,30 Z"/>
+
+    <!-- Receipt body with zigzag bottom -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,30 L80,30 L80,92
+            Q74,85 68,92
+            Q62,85 56,92
+            Q50,85 44,92
+            Q38,85 32,92
+            Q28,88 28,92 Z"/>
+
+    <!-- Item lines (dark blue on white receipt) -->
+    <path
+        android:strokeColor="#1A237E"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M38,44 L70,44"/>
+
+    <path
+        android:strokeColor="#3949AB"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M38,55 L70,55"/>
+
+    <path
+        android:strokeColor="#3949AB"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M38,65 L70,65"/>
+
+    <!-- Total line: two segments (label + amount) -->
+    <path
+        android:strokeColor="#1A237E"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,75 L52,75"/>
+    <path
+        android:strokeColor="#1A237E"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M60,75 L70,75"/>
+
+</vector>

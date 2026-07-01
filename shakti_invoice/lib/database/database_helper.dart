@@ -53,12 +53,12 @@ class DatabaseHelper {
     ''');
   }
 
-  /// Returns next invoice number like SGS-001
+  /// Returns next invoice number like IC-001
   Future<String> nextInvoiceNumber() async {
     final db = await database;
     final result = await db.rawQuery('SELECT MAX(id) as max_id FROM invoices');
     final lastId = (result.first['max_id'] as int?) ?? 0;
-    return 'SGS-${(lastId + 1).toString().padLeft(3, '0')}';
+    return 'IC-${(lastId + 1).toString().padLeft(3, '0')}';
   }
 
   /// Insert invoice + items, returns the new invoice id
@@ -89,6 +89,98 @@ class DatabaseHelper {
     final db = await database;
     final rows = await db.query('invoices', orderBy: 'id DESC');
     return rows.map((r) => Invoice.fromMap(r)).toList();
+  }
+
+  /// List invoices created today (device local time)
+  Future<List<Invoice>> listTodayInvoices() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      "SELECT * FROM invoices WHERE date(created_at) = date('now','localtime') ORDER BY id DESC",
+    );
+    return rows.map((r) => Invoice.fromMap(r)).toList();
+  }
+
+  /// List invoices from the last [days] days (inclusive)
+  Future<List<Invoice>> listInvoicesForDays(int days) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      "SELECT * FROM invoices WHERE created_at >= datetime('now','localtime','-$days days') ORDER BY id DESC",
+    );
+    return rows.map((r) => Invoice.fromMap(r)).toList();
+  }
+
+  /// Delete invoices (and their items) older than [keepDays] days.
+  /// Returns the number of invoice rows deleted.
+  Future<int> deleteOldInvoices(int keepDays) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final oldRows = await txn.rawQuery(
+        "SELECT id FROM invoices WHERE created_at < datetime('now','localtime','-$keepDays days')",
+      );
+      if (oldRows.isEmpty) return 0;
+      final ids = oldRows.map((r) => r['id'] as int).toList();
+      final placeholders = List.filled(ids.length, '?').join(',');
+      await txn.delete('invoice_items',
+          where: 'invoice_id IN ($placeholders)', whereArgs: ids);
+      return txn.delete('invoices',
+          where: 'id IN ($placeholders)', whereArgs: ids);
+    });
+  }
+
+  /// Returns today's invoice count and grand total sum
+  Future<Map<String, dynamic>> getTodaySummary() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      "SELECT COUNT(*) as count, COALESCE(SUM(grand_total), 0.0) as total "
+      "FROM invoices WHERE date(created_at) = date('now','localtime')",
+    );
+    return {
+      'count': result.first['count'] as int,
+      'total': (result.first['total'] as num).toDouble(),
+    };
+  }
+
+  /// Export every invoice + its items as a JSON-serialisable map
+  Future<Map<String, dynamic>> exportAllData() async {
+    final db = await database;
+    final invoiceRows = await db.query('invoices', orderBy: 'id ASC');
+    final List<Map<String, dynamic>> out = [];
+    for (final inv in invoiceRows) {
+      final itemRows = await db.query(
+        'invoice_items',
+        where: 'invoice_id = ?',
+        whereArgs: [inv['id']],
+      );
+      out.add({...inv, 'items': itemRows.toList()});
+    }
+    return {
+      'version': 1,
+      'exported_at': DateTime.now().toIso8601String(),
+      'invoices': out,
+    };
+  }
+
+  /// Wipe all data and replace with the contents of [backup].
+  /// The backup map must come from [exportAllData].
+  Future<void> importData(Map<String, dynamic> backup) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('invoice_items');
+      await txn.delete('invoices');
+      final invoices = backup['invoices'] as List<dynamic>;
+      for (final invData in invoices) {
+        final inv = Map<String, dynamic>.from(invData as Map);
+        final items = inv.remove('items') as List<dynamic>;
+        inv.remove('id'); // let SQLite assign a new id
+        final newId = await txn.insert('invoices', inv);
+        for (final itemData in items) {
+          final item = Map<String, dynamic>.from(itemData as Map);
+          item.remove('id');
+          item['invoice_id'] = newId;
+          await txn.insert('invoice_items', item);
+        }
+      }
+    });
   }
 
   /// Get a single invoice with its items

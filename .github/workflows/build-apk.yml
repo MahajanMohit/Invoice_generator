@@ -35,6 +35,20 @@ jobs:
         working-directory: shakti_invoice
         run: flutter pub get
 
+      - name: Generate gradle wrapper (binary files only)
+        working-directory: shakti_invoice
+        run: |
+          # Save all our committed Android files
+          cp -r android /tmp/android_backup
+
+          # Run flutter create only to generate binary wrapper files
+          # (gradlew shell script + gradle-wrapper.jar)
+          flutter create --platforms android --project-name shakti_invoice . --quiet
+
+          # Restore all our committed files (build.gradle, settings.gradle,
+          # gradle.properties, MainActivity.kt, AndroidManifest.xml, etc.)
+          cp -r /tmp/android_backup/. android/
+
       - name: Build release APK
         working-directory: shakti_invoice
         run: flutter build apk --release
