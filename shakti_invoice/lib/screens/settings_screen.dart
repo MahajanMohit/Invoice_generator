@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../app_state.dart';
 import '../database/database_helper.dart';
 import '../services/store_settings.dart';
+import '../widgets/common.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,17 +19,22 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const Color _primary = Color(0xFF1a237e);
-  static const Color _mid = Color(0xFF3949ab);
-
   final _formKey = GlobalKey<FormState>();
+  final _db = DatabaseHelper();
+
   final _nameCtrl = TextEditingController();
   final _taglineCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _footer1Ctrl = TextEditingController();
   final _footer2Ctrl = TextEditingController();
+  final _currencyCtrl = TextEditingController();
+  final _prefixCtrl = TextEditingController();
+  final _taxLabelCtrl = TextEditingController();
+  final _taxRateCtrl = TextEditingController();
+  final _retentionCtrl = TextEditingController();
 
-  final _db = DatabaseHelper();
+  String _payMethod = 'Cash';
   bool _loading = true;
   bool _saving = false;
   bool _backingUp = false;
@@ -40,71 +48,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
-    _taglineCtrl.dispose();
-    _locationCtrl.dispose();
-    _footer1Ctrl.dispose();
-    _footer2Ctrl.dispose();
+    for (final c in [
+      _nameCtrl,
+      _taglineCtrl,
+      _locationCtrl,
+      _phoneCtrl,
+      _footer1Ctrl,
+      _footer2Ctrl,
+      _currencyCtrl,
+      _prefixCtrl,
+      _taxLabelCtrl,
+      _taxRateCtrl,
+      _retentionCtrl,
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _load() async {
     final s = await StoreSettingsService.load();
-    if (mounted) {
-      _nameCtrl.text = s.storeName;
-      _taglineCtrl.text = s.storeTagline;
-      _locationCtrl.text = s.storeLocation;
-      _footer1Ctrl.text = s.footerLine1;
-      _footer2Ctrl.text = s.footerLine2;
-      setState(() => _loading = false);
-    }
+    _nameCtrl.text = s.storeName;
+    _taglineCtrl.text = s.storeTagline;
+    _locationCtrl.text = s.storeLocation;
+    _phoneCtrl.text = s.storePhone;
+    _footer1Ctrl.text = s.footerLine1;
+    _footer2Ctrl.text = s.footerLine2;
+    _currencyCtrl.text = s.currencySymbol;
+    _prefixCtrl.text = s.invoicePrefix;
+    _taxLabelCtrl.text = s.taxLabel;
+    _taxRateCtrl.text = s.defaultTaxRate > 0 ? s.defaultTaxRate.toString() : '';
+    _retentionCtrl.text = s.retentionDays.toString();
+    _payMethod = s.defaultPaymentMethod;
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
-    await StoreSettingsService.save(StoreSettings(
+    final s = StoreSettings(
       storeName: _nameCtrl.text.trim(),
       storeTagline: _taglineCtrl.text.trim(),
       storeLocation: _locationCtrl.text.trim(),
+      storePhone: _phoneCtrl.text.trim(),
       footerLine1: _footer1Ctrl.text.trim(),
       footerLine2: _footer2Ctrl.text.trim(),
-    ));
+      currencySymbol: _currencyCtrl.text.trim().isEmpty
+          ? 'Rs.'
+          : _currencyCtrl.text.trim(),
+      invoicePrefix:
+          _prefixCtrl.text.trim().isEmpty ? 'IC' : _prefixCtrl.text.trim(),
+      taxLabel:
+          _taxLabelCtrl.text.trim().isEmpty ? 'GST' : _taxLabelCtrl.text.trim(),
+      defaultTaxRate: double.tryParse(_taxRateCtrl.text) ?? 0,
+      defaultPaymentMethod: _payMethod,
+      retentionDays: int.tryParse(_retentionCtrl.text) ?? 30,
+    );
+    await StoreSettingsService.save(s);
+    currencyNotifier.value = s.currencySymbol;
     if (mounted) {
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Settings saved!'),
-        backgroundColor: Color(0xFF2e7d32),
-      ));
-      // Return true so HomeScreen knows to reload
+      _snack('Settings saved!');
       Navigator.pop(context, true);
     }
-  }
-
-  Future<void> _resetToDefaults() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reset to defaults?'),
-        content: const Text('This will restore the example store name and messages.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Reset', style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    final d = StoreSettings.defaults();
-    _nameCtrl.text = d.storeName;
-    _taglineCtrl.text = d.storeTagline;
-    _locationCtrl.text = d.storeLocation;
-    _footer1Ctrl.text = d.footerLine1;
-    _footer2Ctrl.text = d.footerLine2;
-    setState(() {});
   }
 
   Future<void> _backup() async {
@@ -117,49 +123,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'invoice_bills_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
       final file = File('${dir.path}/$name');
       await file.writeAsString(jsonStr);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/json')],
-        subject: 'Invoice Bills Backup – $name',
-      );
+      await Share.shareXFiles([XFile(file.path, mimeType: 'application/json')],
+          subject: 'Invoice Bills Backup');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup failed: $e'),
-              backgroundColor: const Color(0xFFe53935)),
-        );
-      }
+      _snack('Backup failed: $e', error: true);
     } finally {
       if (mounted) setState(() => _backingUp = false);
     }
   }
 
   Future<void> _restore() async {
-    final confirmed = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Restore Backup?'),
         content: const Text(
-            'All current invoice data will be replaced with the backup file. '
-            'This cannot be undone.'),
+            'All current data will be replaced with the backup file. This cannot be undone.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel')),
           TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Restore',
-                  style: TextStyle(color: Colors.red))),
+              child:
+                  const Text('Restore', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
-    if (confirmed != true) return;
-
+    if (ok != true) return;
     setState(() => _restoring = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
+      final result = await FilePicker.platform
+          .pickFiles(type: FileType.custom, allowedExtensions: ['json']);
       if (result == null || result.files.isEmpty) {
         setState(() => _restoring = false);
         return;
@@ -170,48 +165,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         throw const FormatException('Not a valid Invoice Bills backup file.');
       }
       await _db.importData(data);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Backup restored successfully!'),
-          backgroundColor: Color(0xFF2e7d32),
-        ));
-      }
+      pingData();
+      _snack('Backup restored successfully!');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Restore failed: $e'),
-              backgroundColor: const Color(0xFFe53935)),
-        );
-      }
+      _snack('Restore failed: $e', error: true);
     } finally {
       if (mounted) setState(() => _restoring = false);
     }
   }
 
+  void _snack(String m, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(m),
+      backgroundColor: error ? Colors.red : Colors.green.shade700,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [_primary, _mid],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        title: const Text('Store Settings', style: TextStyle(color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.restart_alt, color: Colors.white70, size: 18),
-            label: const Text('Reset', style: TextStyle(color: Colors.white70)),
-            onPressed: _resetToDefaults,
-          ),
-        ],
-      ),
+      appBar: GradientAppBar(title: const Text('Settings')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -219,71 +192,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  _sectionHeader(Icons.store, 'Store Identity', cs),
-                  const SizedBox(height: 10),
-                  _field(
-                    controller: _nameCtrl,
-                    label: 'Store Name',
-                    hint: 'e.g. My General Store',
-                    required: true,
-                    maxLength: 60,
-                    cs: cs,
+                  const SectionHeader(icon: Icons.store, title: 'Store Identity'),
+                  _field(_nameCtrl, 'Store Name', required: true),
+                  _field(_locationCtrl, 'Location / City'),
+                  _field(_phoneCtrl, 'Phone', keyboard: TextInputType.phone),
+                  _field(_taglineCtrl, 'Tagline'),
+                  const SizedBox(height: 20),
+                  const SectionHeader(
+                      icon: Icons.tune, title: 'Billing Preferences'),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _field(_currencyCtrl, 'Currency',
+                              inline: true)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: _field(_prefixCtrl, 'Invoice Prefix',
+                              inline: true)),
+                    ],
                   ),
                   const SizedBox(height: 12),
-                  _field(
-                    controller: _locationCtrl,
-                    label: 'Location / City',
-                    hint: 'e.g. Dablehar  (optional)',
-                    required: false,
-                    maxLength: 60,
-                    cs: cs,
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _field(_taxLabelCtrl, 'Tax Label',
+                              inline: true)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: _field(_taxRateCtrl, 'Default Tax %',
+                              inline: true, number: true)),
+                    ],
                   ),
                   const SizedBox(height: 12),
-                  _field(
-                    controller: _taglineCtrl,
-                    label: 'Tagline',
-                    hint: 'e.g. Quality Products | Trusted Service',
-                    required: false,
-                    maxLength: 80,
-                    cs: cs,
+                  DropdownButtonFormField<String>(
+                    value: _payMethod,
+                    decoration:
+                        const InputDecoration(labelText: 'Default Payment'),
+                    items: const ['Cash', 'UPI', 'Card', 'Credit']
+                        .map((m) =>
+                            DropdownMenuItem(value: m, child: Text(m)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _payMethod = v ?? 'Cash'),
                   ),
-                  const SizedBox(height: 24),
-                  _sectionHeader(Icons.receipt_long, 'Receipt Footer', cs),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 12),
+                  _field(_retentionCtrl, 'Keep invoices for (days)',
+                      number: true),
+                  const SizedBox(height: 20),
+                  const SectionHeader(
+                      icon: Icons.receipt_long, title: 'Receipt Footer'),
+                  _field(_footer1Ctrl, 'Footer Line 1'),
+                  _field(_footer2Ctrl, 'Footer Line 2'),
+                  const SizedBox(height: 20),
+                  const SectionHeader(
+                      icon: Icons.backup, title: 'Data Management'),
                   Text(
-                    'These lines appear at the bottom of every printed receipt.',
+                    'Backup exports everything (invoices, products, customers) as a JSON file. Restore replaces all data.',
                     style: TextStyle(
                         fontSize: 12,
-                        color: cs.onSurface.withOpacity(0.55)),
-                  ),
-                  const SizedBox(height: 10),
-                  _field(
-                    controller: _footer1Ctrl,
-                    label: 'Footer Line 1',
-                    hint: 'e.g. Thank you for shopping with us!',
-                    required: false,
-                    maxLength: 80,
-                    cs: cs,
-                  ),
-                  const SizedBox(height: 12),
-                  _field(
-                    controller: _footer2Ctrl,
-                    label: 'Footer Line 2',
-                    hint: 'e.g. Visit us again!  (optional)',
-                    required: false,
-                    maxLength: 80,
-                    cs: cs,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildPreview(cs),
-                  const SizedBox(height: 24),
-                  _sectionHeader(Icons.backup, 'Data Management', cs),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Backup exports all invoices as a JSON file you can save or share. '
-                    'Restore replaces all data from a previous backup.',
-                    style: TextStyle(
-                        fontSize: 12, color: cs.onSurface.withOpacity(0.55)),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.6)),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -297,17 +266,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2))
                               : const Icon(Icons.upload),
-                          label:
-                              Text(_backingUp ? 'Exporting…' : 'Backup Data'),
+                          label: Text(_backingUp ? 'Exporting…' : 'Backup'),
                           onPressed:
                               (_backingUp || _restoring) ? null : _backup,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: cs.primary),
-                            foregroundColor: cs.primary,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -320,18 +281,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2))
                               : const Icon(Icons.download),
-                          label: Text(
-                              _restoring ? 'Restoring…' : 'Restore Backup'),
+                          label: Text(_restoring ? 'Restoring…' : 'Restore'),
                           onPressed:
                               (_backingUp || _restoring) ? null : _restore,
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side:
-                                BorderSide(color: cs.error.withOpacity(0.7)),
-                            foregroundColor: cs.error,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
+                              foregroundColor: Colors.red.shade400),
                         ),
                       ),
                     ],
@@ -339,7 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: FilledButton.icon(
                       icon: _saving
                           ? const SizedBox(
                               width: 18,
@@ -347,152 +301,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2))
                           : const Icon(Icons.save),
-                      label: Text(_saving ? 'Saving...' : 'Save Settings'),
+                      label: Text(_saving ? 'Saving…' : 'Save Settings'),
                       onPressed: _saving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: _primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
     );
   }
 
-  Widget _sectionHeader(IconData icon, String title, ColorScheme cs) => Row(
-        children: [
-          Icon(icon, size: 18, color: cs.primary),
-          const SizedBox(width: 8),
-          Text(title,
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: cs.primary)),
-        ],
-      );
-
-  Widget _field({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required bool required,
-    required int maxLength,
-    required ColorScheme cs,
-  }) =>
-      TextFormField(
-        controller: controller,
-        maxLength: maxLength,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          counterText: '',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: cs.primary, width: 2),
-          ),
-        ),
-        validator: required
-            ? (v) => (v == null || v.trim().isEmpty) ? '$label is required' : null
-            : null,
-      );
-
-  /// Live preview of how the receipt header/footer will look
-  Widget _buildPreview(ColorScheme cs) {
-    return AnimatedBuilder(
-      animation: Listenable.merge(
-          [_nameCtrl, _taglineCtrl, _locationCtrl, _footer1Ctrl, _footer2Ctrl]),
-      builder: (_, __) {
-        final name = _nameCtrl.text.trim();
-        final location = _locationCtrl.text.trim();
-        final tagline = _taglineCtrl.text.trim();
-        final f1 = _footer1Ctrl.text.trim();
-        final f2 = _footer2Ctrl.text.trim();
-        final displayName = location.isEmpty ? name : '$name, $location';
-        final dividerColor = cs.outline.withOpacity(0.35);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionHeader(Icons.visibility, 'Receipt Preview', cs),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: cs.outline.withOpacity(0.4)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    displayName.isEmpty ? '(Store Name)' : displayName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: cs.primary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  if (tagline.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(tagline,
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                            color: cs.primary.withOpacity(0.75)),
-                        textAlign: TextAlign.center),
-                  ],
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(color: dividerColor),
-                  ),
-                  Text('RECEIPT',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.6))),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(color: dividerColor),
-                  ),
-                  Text('... invoice items ...',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.35))),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Divider(color: dividerColor),
-                  ),
-                  if (f1.isNotEmpty)
-                    Text(f1,
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                            color: cs.onSurface.withOpacity(0.55)),
-                        textAlign: TextAlign.center),
-                  if (f2.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(f2,
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontStyle: FontStyle.italic,
-                            color: cs.onSurface.withOpacity(0.55)),
-                        textAlign: TextAlign.center),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+  Widget _field(
+    TextEditingController c,
+    String label, {
+    bool required = false,
+    bool inline = false,
+    bool number = false,
+    TextInputType? keyboard,
+  }) {
+    final field = TextFormField(
+      controller: c,
+      keyboardType: number
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : keyboard,
+      inputFormatters: number
+          ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
+          : null,
+      textCapitalization:
+          number ? TextCapitalization.none : TextCapitalization.words,
+      decoration: InputDecoration(labelText: label),
+      validator: required
+          ? (v) => (v == null || v.trim().isEmpty) ? '$label required' : null
+          : null,
     );
+    return inline
+        ? field
+        : Padding(padding: const EdgeInsets.only(top: 12), child: field);
   }
 }
