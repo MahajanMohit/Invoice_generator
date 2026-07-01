@@ -85,7 +85,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 children: [
                   _statGrid(),
                   const SizedBox(height: 20),
@@ -114,7 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.55,
+      childAspectRatio: 1.3,
       children: [
         _StatCard(
             icon: Icons.account_balance_wallet,
@@ -246,6 +246,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 children: [
                   DonutChart(
+                    size: 128,
+                    thickness: 24,
                     values:
                         _payments.map((r) => r['total'] as double).toList(),
                     colors: AppTheme.chartPalette,
@@ -265,9 +267,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         for (int i = 0; i < _payments.length; i++)
                           _legendRow(
@@ -288,19 +291,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _legendRow(Color c, String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-                width: 10,
-                height: 10,
-                decoration:
-                    BoxDecoration(color: c, borderRadius: BorderRadius.circular(3))),
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                      color: c, borderRadius: BorderRadius.circular(3))),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13)),
+                  Text(value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -426,15 +446,19 @@ class _StatCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10)),
               child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(value,
+                  maxLines: 1,
                   style: const TextStyle(
                       fontSize: 19, fontWeight: FontWeight.bold)),
             ),
+            const SizedBox(height: 2),
             Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontSize: 12,
                     color:

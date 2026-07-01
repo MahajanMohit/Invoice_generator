@@ -34,8 +34,10 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
       iconTheme: const IconThemeData(color: Colors.white),
       titleTextStyle: const TextStyle(
           color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-      flexibleSpace: const DecoratedBox(
-        decoration: BoxDecoration(gradient: AppTheme.brandGradient),
+      // NOTE: use Container (not DecoratedBox) — a childless DecoratedBox
+      // collapses to zero size in flexibleSpace, so the gradient never paints.
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.brandGradient),
       ),
     );
   }

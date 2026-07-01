@@ -234,7 +234,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     });
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
       children: sections,
     );
   }
