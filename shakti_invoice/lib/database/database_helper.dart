@@ -188,6 +188,8 @@ class DatabaseHelper {
   }
 
   /// Replace an existing invoice and its items (used by edit).
+  /// Also refreshes catalog prices / customer info, but does NOT re-count
+  /// the sale (that was already counted when the invoice was first created).
   Future<void> updateInvoice(Invoice invoice) async {
     final db = await database;
     await db.transaction((txn) async {
@@ -198,12 +200,18 @@ class DatabaseHelper {
       for (final item in invoice.items) {
         await txn.insert('invoice_items', item.toMap(invoice.id!));
       }
+      await _learnFromInvoice(txn, invoice, invoice.items,
+          incrementSales: false);
     });
   }
 
   /// Auto-populate the catalog + customer directory from a saved invoice.
+  /// [incrementSales] bumps each product's popularity counter; pass false when
+  /// editing an existing invoice so the sale isn't double-counted (prices still
+  /// get refreshed so the catalog stays consistent with the latest edit).
   Future<void> _learnFromInvoice(
-      Transaction txn, Invoice invoice, List<InvoiceItem> items) async {
+      Transaction txn, Invoice invoice, List<InvoiceItem> items,
+      {bool incrementSales = true}) async {
     // Customer directory
     final name = invoice.customer.trim();
     if (name.isNotEmpty) {
@@ -231,7 +239,7 @@ class DatabaseHelper {
         await txn.insert('products', {
           'name': itemName,
           'price': item.unitPrice,
-          'times_sold': 1,
+          'times_sold': incrementSales ? 1 : 0,
         });
       } else {
         final id = existing.first['id'] as int;
@@ -239,9 +247,10 @@ class DatabaseHelper {
         await txn.update(
             'products',
             {
-              'times_sold': sold + 1,
-              // Keep catalog price fresh with the latest used price.
+              // Keep catalog price fresh with the latest used price — on both
+              // new invoices and edits.
               'price': item.unitPrice,
+              if (incrementSales) 'times_sold': sold + 1,
             },
             where: 'id = ?',
             whereArgs: [id]);

@@ -94,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       footerLine1: _footer1Ctrl.text.trim(),
       footerLine2: _footer2Ctrl.text.trim(),
       currencySymbol: _currencyCtrl.text.trim().isEmpty
-          ? 'Rs.'
+          ? '₹'
           : _currencyCtrl.text.trim(),
       invoicePrefix:
           _prefixCtrl.text.trim().isEmpty ? 'IC' : _prefixCtrl.text.trim(),

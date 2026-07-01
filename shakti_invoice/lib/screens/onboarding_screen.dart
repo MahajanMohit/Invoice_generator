@@ -14,7 +14,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _page = PageController();
   final _nameCtrl = TextEditingController();
-  final _currencyCtrl = TextEditingController(text: 'Rs.');
+  final _currencyCtrl = TextEditingController(text: '₹');
   int _index = 0;
   bool _saving = false;
 
@@ -34,7 +34,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ? 'My Store'
           : _nameCtrl.text.trim(),
       currencySymbol:
-          _currencyCtrl.text.trim().isEmpty ? 'Rs.' : _currencyCtrl.text.trim(),
+          _currencyCtrl.text.trim().isEmpty ? '₹' : _currencyCtrl.text.trim(),
     );
     await StoreSettingsService.save(s);
     await StoreSettingsService.setOnboarded(true);
@@ -151,7 +151,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     fontSize: 22,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
-            _whiteField(_nameCtrl, 'Store name', 'e.g. Sharma General Store'),
+            _whiteField(_nameCtrl, 'Store name', 'e.g. Shakti General Store'),
             const SizedBox(height: 14),
             _whiteField(_currencyCtrl, 'Currency symbol', 'Rs.  /  ₹  /  \$'),
             const SizedBox(height: 8),

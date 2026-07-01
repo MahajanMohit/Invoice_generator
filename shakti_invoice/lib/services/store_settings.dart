@@ -39,7 +39,7 @@ class StoreSettings {
         storePhone: '',
         footerLine1: 'Thank you for shopping with us!',
         footerLine2: '',
-        currencySymbol: 'Rs.',
+        currencySymbol: '₹',
         invoicePrefix: 'IC',
         defaultTaxRate: 0,
         taxLabel: 'GST',

@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
 
 /// Currency symbol shown in front of every amount (e.g. "Rs.", "₹", "$").
-final currencyNotifier = ValueNotifier<String>('Rs.');
+final currencyNotifier = ValueNotifier<String>('₹');
 
 /// Bumped whenever invoices/products/customers change so open screens
 /// (dashboard, history) can refresh themselves. Increment via [pingData].

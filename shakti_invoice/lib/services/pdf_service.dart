@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +15,19 @@ class PdfService {
   static const PdfColor _grid = PdfColor.fromInt(0xFFc5cae9);
   static const PdfColor _footer = PdfColor.fromInt(0xFF607d8b);
 
+  // Bundled font that includes the ₹ glyph (the built-in PDF font does not,
+  // so ₹ would otherwise print as a missing-glyph box). Loaded once, cached.
+  static pw.ThemeData? _theme;
+
+  static Future<pw.ThemeData> _loadTheme() async {
+    if (_theme != null) return _theme!;
+    final base = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans.ttf'));
+    final bold =
+        pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'));
+    _theme = pw.ThemeData.withFont(base: base, bold: bold);
+    return _theme!;
+  }
+
   /// Generates a 58mm-width thermal receipt PDF and returns its file path.
   static Future<String> generateReceipt({
     required Invoice invoice,
@@ -21,6 +35,7 @@ class PdfService {
     required StoreSettings settings,
   }) async {
     final doc = pw.Document();
+    final theme = await _loadTheme();
     final cur = settings.currencySymbol;
 
     // Count the optional total lines so the page height fits.
@@ -43,6 +58,7 @@ class PdfService {
 
     doc.addPage(pw.Page(
       pageFormat: pageFormat,
+      theme: theme,
       build: (ctx) {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
