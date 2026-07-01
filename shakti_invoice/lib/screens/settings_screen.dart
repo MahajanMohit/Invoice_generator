@@ -124,7 +124,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final file = File('${dir.path}/$name');
       await file.writeAsString(jsonStr);
       await Share.shareXFiles([XFile(file.path, mimeType: 'application/json')],
-          subject: 'Invoice Bills Backup');
+          subject: 'Invoice Bills Backup',
+          text: 'Choose Google Drive to store this backup in the cloud.');
     } catch (e) {
       _snack('Backup failed: $e', error: true);
     } finally {
@@ -244,9 +245,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _field(_footer2Ctrl, 'Footer Line 2'),
                   const SizedBox(height: 20),
                   const SectionHeader(
-                      icon: Icons.backup, title: 'Data Management'),
+                      icon: Icons.cloud_upload, title: 'Backup & Google Drive'),
                   Text(
-                    'Backup exports everything (invoices, products, customers) as a JSON file. Restore replaces all data.',
+                    'Backup saves everything (invoices, products, customers) as one file. '
+                    'On the share sheet, pick Google Drive to keep it safely in the cloud — '
+                    'or save it anywhere. Restore loads a backup file back in.',
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context)
@@ -265,8 +268,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   height: 16,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2))
-                              : const Icon(Icons.upload),
-                          label: Text(_backingUp ? 'Exporting…' : 'Backup'),
+                              : const Icon(Icons.cloud_upload_outlined),
+                          label:
+                              Text(_backingUp ? 'Exporting…' : 'Back up to Drive'),
                           onPressed:
                               (_backingUp || _restoring) ? null : _backup,
                         ),
